@@ -20,6 +20,21 @@
 ### 1.2.1 task_struct结构
 
 	定义位置：/usr/src/linux-headers/include/linux/sched.h
+	struct task_struct {
+	volatile long state	state;
+	void				stack;
+	atomic_t			usage;
+	unsigned long		flags;
+	unsigned long		ptrace;
+	int					lock_depth;
+
+Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组，而该数组类型为struct rlimit
+
+	<resource.h>
+	struct rlimit {
+	unsigned long	rlim_cur;
+	unsigned long	rlim_max;
+	}
 
 ### 1.2.2 files_struct结构体
 
