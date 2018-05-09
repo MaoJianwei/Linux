@@ -2,7 +2,15 @@
 
 ## 1.1  C标准函数与系统函数的区别
 
+### 函数sysconf、pathconf和fpathconf
+函数原型
+'''
+#include <unistd.h>
 
+long sysconf(int name);
+long pathconf(const char* pathname, int name);
+log fpathconf(int fd, int name);
+'''
 
 
 ### 1.1.1  I/O缓冲区
