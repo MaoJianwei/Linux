@@ -6,7 +6,6 @@
 
 函数原型
 
-
 	#include <unistd.h>
 	
 	long sysconf(int name);
