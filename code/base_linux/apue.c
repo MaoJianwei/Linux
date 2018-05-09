@@ -1,6 +1,6 @@
 #include <errno.h>
 #include <stdarg.h>
-#include "ourhdr"
+#include "apue.h"
 
 static void err_doit(int, int, const char *, va_list);
 

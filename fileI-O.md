@@ -2,8 +2,23 @@
 
 ## 1.1  C标准函数与系统函数的区别
 
+### 函数sysconf、pathconf和fpathconf
+
+函数原型
 
 
+	#include <unistd.h>
+	
+	long sysconf(int name);
+	long pathconf(const char* pathname, int name);
+	log fpathconf(int fd, int name);
+
+
+后面连个函数的区别在于：一个用路径名作为参数，一个用文件描述符作为参数。
+
+如果name不是一个合适的常量，三个函数都会返回-1，并把errno设置为EINVAL。
+
+有些name会返回一个变量值（返回值≥0）或者提示该值是不确定的。不确定的值通过-1来体现，但是不修改errno的值。
 
 ### 1.1.1  I/O缓冲区
 
@@ -19,7 +34,8 @@
 
 ### 1.2.1 task_struct结构
 
-	定义位置：/usr/src/linux-headers/include/linux/sched.h
+定义位置：/usr/src/linux-headers/include/linux/sched.h
+
 	struct task_struct {
 	volatile long state	state;
 	void				stack;
@@ -32,8 +48,8 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 	<resource.h>
 	struct rlimit {
-	unsigned long	rlim_cur;
-	unsigned long	rlim_max;
+		unsigned long	rlim_cur;
+		unsigned long	rlim_max;
 	}
 
 ### 1.2.2 files_struct结构体
@@ -58,20 +74,21 @@ O_SYNC|每次write都等到物理I/O操作完成，包括文件属性的更新
 
 ### 1.3.1 文件描述符
 
-	一个进程默认打开3个文件描述符
+对于内核而言，所有打开的文件都是通过文件描述符来引用。当读写文件时，使用open或者create返回文件描述符来识别该文件，将其作为参数传送给read或write。一个进程默认打开3个文件描述符，并定义在<unistd.h>中。
 
 	STDIN_FILENO 0
 	STDOUT_FILENO 1
 	STDERR_FILENO 2
 
-	open函数可以打开或者创建一个文件
-    使用open函数，需要包含以下三个头文件
+open函数可以打开或者创建一个文件，使用open函数，需要包含以下三个头文件
 
-```
 	#include <sys/types.h>
 	#include <sys/stat.h>
 	#include <fcntl.h>
-```
+
+	int open(const char *path, int oflag,.../*mdoe_t mode*/);
+	int openat(int fd, const char* path, int oflag, .../*mdoe_t mode*/);
+        //若成功，返回文件描述符，若失败，返回-1
 
 最后的可变参数可以是0个或1个,由flags参数中的标志位决定,见下面的详细说明。
 
@@ -98,20 +115,33 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 
 以三个参数mode指定文件权限，可以用八进制数表示，比如0644表示-rw-r--r--,也可以用S_IRUSR、S_IWUSR等宏定义按位或起来表示。要注意的是，文件权限由open的mode参数和当前进程的umask共同决定。
 
-	close函数
+函数close
 
-	最大文件打开个数
-	默认一个进程最多可以打开1024个文件，可以使用
+最大文件打开个数
+默认一个进程最多可以打开1024个文件，可以使用
+
 	cat /proc/sys/fs/file-max
-	通过ulimit -a可以查看和修改文件打开个数
+
+通过ulimit -a可以查看和修改文件打开个数
+
 	ulimit -n 4096
+
+函数create
+
+也可以调用create创建一个新文件
+
+	#include <fcntl.h>
+
+	int create(const char *path, mode_t mode);
+		//此函数等效于open(path, O_WRONLY| O_RDONLY| O_TRUNC, mode)
+
 
 ## 1.4 read/write
 
-```
+
 	#include <unistd.h>
 	ssize_t read(int fd, void *buf, size_t count);
-```
+
 
 返回值：成功返回读取的**字节数**，出错则返回**-1并设置errno**，如果在调用read之前已经到达文件末尾，则这次read返回**0**；
 
@@ -174,43 +204,59 @@ write函数向打开的设备或文件中写数据。
 
 ### lseek
 
- #include <sys/types.h>
- #include <unistd.h>
+		#include <sys/types.h>
+		#include <unistd.h>
+		
+		off_t lseek(int fd, off_t offset, int whence);
 
- off_t lseek(int fd, off_t offset, int whence);
+
+对参数offset的解释与参数whence有关。
+
+* 若whence是SEEK_SET，则该文件便宜量设置为距文件开始offset个字节
+
+* 若whence是SEEK_CUR，则该文件的偏移量设置为当前值加offset，offset可以为正或者负
+
+* 若whence是SEEK_END，则该文件的偏移量设置为文件长度加上offset，offset可正可负
+
+若lseek成功执行，则返回新文件的偏移量，为此可以用下列方式确定打开文件当前的偏移量：
+
+		off_t	currpos;
+		currpos = lseek(fd, 0, SEEK_CUR);
 
 额外功能：
+
 1、拓展一个文件，一定要有一次写操作
+
 2、同时可以获取文件大小
 
 ### fseek函数
 
- #include <stdio.h>
-
- int fseek(FILE *stream, long offset, int whence);
-
- long ftell(FILE *stream);
-
- void rewind(FILE *stream);
-
- int fgetpos(FILE *stream, fpos_t *pos);
- int fsetpos(FILE *stream, const fpos_t *pos);
+		#include <stdio.h>
+		
+		int fseek(FILE *stream, long offset, int whence);
+		
+		long ftell(FILE *stream);
+		
+		void rewind(FILE *stream);
+		
+		int fgetpos(FILE *stream, fpos_t *pos);
+		int fsetpos(FILE *stream, const fpos_t *pos);
 
 # 1.7 fcntl
 
     获取和设置文件访问属性
-```
-    #include <unistd.h>
-    #include <fcntl.h>
 
-    int fcntl(int fd, int cmd, ... /* arg */ );
-    int fcntl(int fd, int cmd);
-    int fcntl(int fd, int cmd, long arg);
-    int fcntl(int fd, int cmd, struct flock *lock);
-```
+		#include <unistd.h>
+		#include <fcntl.h>
+		
+		int fcntl(int fd, int cmd, ... /* arg */ );
+		int fcntl(int fd, int cmd);
+		int fcntl(int fd, int cmd, long arg);
+		int fcntl(int fd, int cmd, struct flock *lock);
+
 
 参数  |作用
-:-----：|：------：
+:-----:|:------:
 __F_DUPFD__ | 复制一个文件描述符
 __F_GETFL__ | 获得一个文件标志状态
 __F_SETFL__ | 设置文件状态标志
@@ -222,11 +268,11 @@ ioctl用于向设备发控制和配置命令，有些命令也需要读写一些
 
 ![ioctl工作模式](./figures/3-file-io/ioctl.png)
 ioctl 工作模式
-```
-    #inlcude <sys/ioctl.h>
 
-    int ioctl(int d, int request, ...);
-```
+		#inlcude <sys/ioctl.h>
+		
+		int ioctl(int d, int request, ...);
+
 
 d是某个设备文件描述符。request是ioctl命令，可变参数取决于request。
 
