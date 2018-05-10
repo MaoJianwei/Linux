@@ -1,8 +1,8 @@
-# 1  文件I/O
+# 1 文件I/O
 
-## 1.1  C标准函数与系统函数的区别
+## 1.1 C标准函数与系统函数的区别
 
-### 函数sysconf、pathconf和fpathconf
+### 1.1.1 函数sysconf、pathconf和fpathconf
 
 函数原型
 
@@ -19,13 +19,13 @@
 
 有些name会返回一个变量值（返回值≥0）或者提示该值是不确定的。不确定的值通过-1来体现，但是不修改errno的值。
 
-### 1.1.1  I/O缓冲区
+### 1.1.2  I/O缓冲区
 
 每一个FILE文件流都有一个缓冲区buffer，默认大小8192Byte。
 
-### 1.1.2  效率
+### 1.1.3  效率
 
-### 1.1.3  程序的跨平台性
+### 1.1.4  程序的跨平台性
 
 事实上Unbuffered I/O这个名词是有些误导的，虽然write系统调用位于C标准库I/O缓冲区的底层，但在write的底层也可以分配一个内核I/O缓冲区，所以write也不一定是直接写到文件的，也可能写到内核I/O缓冲区中，至于究竟写到了文件中还是内核缓冲区中对于进程来说是没有差别的，如果进程A和进程B打开同一文件，进程A写到内核I/O缓冲区中的数据从进程B也能读到，而C标准库的I/O缓冲区则不具有这一特性（想一想为什么）。
 
@@ -59,17 +59,17 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 ## 1.3 open/close
 
-FLAG|作用
-------|-----
-O_CREAT|创建文件
-O_EXCL|创建文件时，如果文件存在则出错返回
-O_TRUNC|把文件截断为0
-O_RDONLY|只读（互斥）
-O_WRONLY|只写（互斥）
-O_RDWR|读写（互斥）
-O_APPEND|追加，移动文件读写指针到文件末尾
-O_NONBLOCK|非阻塞标志
-O_SYNC|每次write都等到物理I/O操作完成，包括文件属性的更新
+| FLAG       | 作用                                               |
+| ---------- | -------------------------------------------------- |
+| O_CREAT    | 创建文件                                           |
+| O_EXCL     | 创建文件时，如果文件存在则出错返回                 |
+| O_TRUNC    | 把文件截断为0                                      |
+| O_RDONLY   | 只读（互斥）                                       |
+| O_WRONLY   | 只写（互斥）                                       |
+| O_RDWR     | 读写（互斥）                                       |
+| O_APPEND   | 追加，移动文件读写指针到文件末尾                   |
+| O_NONBLOCK | 非阻塞标志                                         |
+| O_SYNC     | 每次write都等到物理I/O操作完成，包括文件属性的更新 |
 
 ### 1.3.1 文件描述符
 
@@ -156,11 +156,19 @@ write函数向打开的设备或文件中写数据。
 
 	#include <unistd.h>
 
-	ssize_t write(int fd, void *buf, size_t count);
+	ssize_t write(int fd, <const> void *buf, size_t count);
 
 	返回值：成功返回写入的字节数，出错返回-1并设置errno
 
-写常规文件时,write的返回值通常等于请求写的字节数count,而向终端设备或网络写则不一定。
+write出错的一个常见原因是磁盘已写满，或者超过了一个给定进程的文件长度限制。写常规文件时,write的返回值通常等于请求写的字节数count,而向终端设备或网络写则不一定。
+
+当多个进程共享文件时，可使用pread/pwrite来原子性的定位并执行I/O。
+
+        #include <unistd.h>
+
+        ssize_t pread(int fd, void *buf, size_t nbytes, off_t offset);
+        ssize_t pwrite(int fd, void *buf, size_t nbytes, off_t offset);
+
 
 ## 1.5 阻塞和非阻塞
 
@@ -254,19 +262,20 @@ write函数向打开的设备或文件中写数据。
 		int fcntl(int fd, int cmd, struct flock *lock);
 
 
-参数  |作用
-:-----:|:------:
-__F_DUPFD__ | 复制一个文件描述符
-__F_GETFL__ | 获得一个文件标志状态
-__F_SETFL__ | 设置文件状态标志
+| 参数        | 作用                 |
+| :---------: | :------------------: |
+| __F_DUPFD__ | 复制一个文件描述符   |
+| __F_GETFL__ | 获得一个文件标志状态 |
+| __F_SETFL__ | 设置文件状态标志     |
 
 
 ## 1.8 ioctl
 
 ioctl用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而ioctl命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据童工read/write操作，而串口的波特率、校验位、停止位通过ioctl设置，A/D转换的结果通过read图区，而A/D转换的精度和工作频率通过ioctl设置。
 
-![ioctl工作模式](./figures/3-file-io/ioctl.png)
-ioctl 工作模式
+<center>![ioctl工作模式](./figures/3-file-io/ioctl.png)</center>
+
+<center>ioctl 工作模式</center>
 
 		#inlcude <sys/ioctl.h>
 		
@@ -278,14 +287,44 @@ d是某个设备文件描述符。request是ioctl命令，可变参数取决于r
 注意:open命令创建文件呢权限不能超过执行用户的自有权限
 如果有O_CREAT参数时，不要忘记mode参数。
 
+函数dup和dup2
+
+下面两个函数都可以用来复制一个文件描述符。
+
+        #include <unistd.h>
+
+        int dup(int fd);
+        int dup2(int fd, int fd2);
+
+由dup返回的新文件描述符一定是当前可用的最小的文件描述符。对于dup2，可以用fd2参数制定新的文件描述符。新的文件描述符在执行时关闭（close-on-exec）标志总是有dup函数清除。复制一个文件描述符的另一种方式是使用fcntl函数。实际上，调用
+
+        dup(fd);
+
+等效于
+
+        fcntl(fd, F_DUPFD, 0);
+
+而调用
+
+        dup2(fd, fd2);
+
+等效于
+
+        close(fd2);
+        fcntl(fd, F_DUPFD, fd2);    
+        
+* 这种情况不完全等价，可能close和fcntl之间调用了信号捕捉函数，它可能修改文件描述符，不同的线程修改文件描述符的话也会出现相同的问题
+
+* "dup2"和"fcntl"有一些不同的"errno"
+
 
 # 2  文件系统
 
 ## 2.1  ext2文件系统
 
-|1024|ext2管理单元|
-----|-----
-|boot block| 以4k为单元元|
+| 1024       | ext2管理单元 |
+| ---------- | ------------ |
+| boot block | 以4k为单元元 |
 
 1block = 4096Bytes
 1block = 8磁盘扇区
@@ -322,16 +361,16 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
 
 ### 2.1.1  目录中纪录项文件类型
 
-编码|文件类型
-------|-----
-0|Unknown
-1|Regular file
-2|Directory
-3|Character device
-4|Block device
-5|Named pipe
-6|Socket
-7|Symbolic link
+| 编码   | 文件类型         |
+| ------ | ---------------- |
+| 0      | Unknown          |
+| 1      | Regular file     |
+| 2      | Directory        |
+| 3      | Character device |
+| 4      | Block device     |
+| 5      | Named pipe       |
+| 6      | Socket           |
+| 7      | Symbolic link    |
 
 ### 2.1.2  数据块寻址
 
@@ -379,12 +418,12 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
 
     按用户ID和实际组ID测试，跟踪符号链接，参数mode：
 
- | 
-    -----|-----
-    R_OK |是否具有读权限
-    W_OK | 是否具有写权限
-    X_OK | 是否具有执行权限
-    F_OK | 测试一个文件是否存在
+ |       |
+ | ----- | -------------------- |
+ | R_OK  | 是否具有读权限       |
+ | W_OK  | 是否具有写权限       |
+ | X_OK  | 是否具有执行权限     |
+ | F_OK  | 测试一个文件是否存在 |
 
 ## link
 
