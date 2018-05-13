@@ -261,19 +261,23 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 		int fcntl(int fd, int cmd, long arg);
 		int fcntl(int fd, int cmd, struct flock *lock);
 
+第三个参数常为整数，但是在说明记录锁时， 可以为指向一个结构的指针。
 
 | 参数        | 作用                 |
 | :---------: | :------------------: |
 | __F_DUPFD__ | 复制一个文件描述符   |
 | __F_GETFL__ | 获得一个文件标志状态 |
 | __F_SETFL__ | 设置文件状态标志     |
-
+| __F_GETOWN__ | 获取异步I/O所有权  |
+| __F_SETOWN__ | 设置异步I/O所有权  |
+| __F_GETLK__ | 获取记录锁  |
+| __F_SETLK__ 或 __F_SETLKW__ | 设置记录锁  |
 
 ## 1.8 ioctl
 
-ioctl用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而ioctl命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据童工read/write操作，而串口的波特率、校验位、停止位通过ioctl设置，A/D转换的结果通过read图区，而A/D转换的精度和工作频率通过ioctl设置。
+ioctl用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而ioctl命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据通过read/write操作，而串口的波特率、校验位、停止位通过ioctl设置，A/D转换的结果通过read读取，而A/D转换的精度和工作频率通过ioctl设置。
 
-<center>![ioctl工作模式](./figures/3-file-io/ioctl.png)</center>
+<center>![ioctl工作模式](./figures/1-file-io/ioctl.png)</center>
 
 <center>ioctl 工作模式</center>
 
@@ -296,7 +300,7 @@ d是某个设备文件描述符。request是ioctl命令，可变参数取决于r
         int dup(int fd);
         int dup2(int fd, int fd2);
 
-由dup返回的新文件描述符一定是当前可用的最小的文件描述符。对于dup2，可以用fd2参数制定新的文件描述符。新的文件描述符在执行时关闭（close-on-exec）标志总是有dup函数清除。复制一个文件描述符的另一种方式是使用fcntl函数。实际上，调用
+由`dup`返回的新文件描述符一定是当前可用的最小的文件描述符。对于`dup2`，可以用fd2参数制定新的文件描述符。新的文件描述符在执行时关闭（close-on-exec）标志总是有`dup`函数清除。复制一个文件描述符的另一种方式是使用`fcntl`函数。实际上，调用
 
         dup(fd);
 
@@ -313,9 +317,27 @@ d是某个设备文件描述符。request是ioctl命令，可变参数取决于r
         close(fd2);
         fcntl(fd, F_DUPFD, fd2);    
         
-* 这种情况不完全等价，可能close和fcntl之间调用了信号捕捉函数，它可能修改文件描述符，不同的线程修改文件描述符的话也会出现相同的问题
+* 这种情况不完全等价，可能`close`和`fcntl`之间调用了信号捕捉函数，它可能修改文件描述符，不同的线程修改文件描述符的话也会出现相同的问题
 
-* "dup2"和"fcntl"有一些不同的"errno"
+* `dup2`和`fcntl`有一些不同的`errno`
+
+函数sync、fsync和fdatasync
+
+传统的UNIX系统是现在内核中设有缓冲区高速缓存或页高速缓存，大多数磁盘I/O斗殴谈过缓冲区进行。当我们写入数据时，内核通常先将数据复制到缓冲区内，然后排入队列，晚些时候在写入磁盘。这种方式被称作延迟写（delayed write）。当内核需要重用缓冲区来存放其他磁盘块数据时，他会把所有的延迟写数据写入磁盘。为了保证实际文件系统与缓冲区中内容的一致性，UNIX提供了`sync`、fsync和fdatasync三个函数。
+
+        #include <unistd.h>
+
+        int fsync(int fd);
+        int fdatasync(int fd);
+
+        void sync(void);    
+        
+一个称为update的守护进程周期性调用sync函数，保证了定期冲洗（flush）内核块缓冲区。
+
+fsync函数只对由文件描述符fd指定的一个文件起作用，并且等待写磁盘操作结束时才返回。
+
+fdatasync函数类似于fsync，但是它只影响文件的数据部分。而除了数据外，fsync还会同步更新文件的属性。
+
 
 
 # 2  文件系统
