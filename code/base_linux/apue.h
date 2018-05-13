@@ -24,7 +24,7 @@
 #include <sys/ioctl.h>
 #endif
 
-#define MAXFILE 4096
+#define MAXLINE 4096
 
 #define FILE_MODE (S_IRUSR | S_IWUSR | S_IRGRP|S_IROTH)
 

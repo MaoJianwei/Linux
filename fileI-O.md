@@ -273,25 +273,7 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 | __F_GETLK__ | 获取记录锁  |
 | __F_SETLK__ 或 __F_SETLKW__ | 设置记录锁  |
 
-## 1.8 ioctl
-
-ioctl用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而ioctl命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据通过read/write操作，而串口的波特率、校验位、停止位通过ioctl设置，A/D转换的结果通过read读取，而A/D转换的精度和工作频率通过ioctl设置。
-
-<center>![ioctl工作模式](./figures/1-file-io/ioctl.png)</center>
-
-<center>ioctl 工作模式</center>
-
-		#inlcude <sys/ioctl.h>
-		
-		int ioctl(int d, int request, ...);
-
-
-d是某个设备文件描述符。request是ioctl命令，可变参数取决于request。
-
-注意:open命令创建文件呢权限不能超过执行用户的自有权限
-如果有O_CREAT参数时，不要忘记mode参数。
-
-函数dup和dup2
+## 1.8 函数dup和dup2
 
 下面两个函数都可以用来复制一个文件描述符。
 
@@ -323,21 +305,42 @@ d是某个设备文件描述符。request是ioctl命令，可变参数取决于r
 
 函数sync、fsync和fdatasync
 
-传统的UNIX系统是现在内核中设有缓冲区高速缓存或页高速缓存，大多数磁盘I/O斗殴谈过缓冲区进行。当我们写入数据时，内核通常先将数据复制到缓冲区内，然后排入队列，晚些时候在写入磁盘。这种方式被称作延迟写（delayed write）。当内核需要重用缓冲区来存放其他磁盘块数据时，他会把所有的延迟写数据写入磁盘。为了保证实际文件系统与缓冲区中内容的一致性，UNIX提供了`sync`、fsync和fdatasync三个函数。
+传统的UNIX系统是现在内核中设有缓冲区高速缓存或页高速缓存，大多数磁盘I/O斗殴谈过缓冲区进行。当我们写入数据时，内核通常先将数据复制到缓冲区内，然后排入队列，晚些时候在写入磁盘。这种方式被称作延迟写（delayed write）。当内核需要重用缓冲区来存放其他磁盘块数据时，他会把所有的延迟写数据写入磁盘。为了保证实际文件系统与缓冲区中内容的一致性，UNIX提供了`sync`、`fsync`和`fdatasync`三个函数。
 
+```c
         #include <unistd.h>
 
         int fsync(int fd);
         int fdatasync(int fd);
 
         void sync(void);    
-        
-一个称为update的守护进程周期性调用sync函数，保证了定期冲洗（flush）内核块缓冲区。
+```
 
-fsync函数只对由文件描述符fd指定的一个文件起作用，并且等待写磁盘操作结束时才返回。
+一个称为update的守护进程周期性调用`sync`函数，保证了定期冲洗（flush）内核块缓冲区。
 
-fdatasync函数类似于fsync，但是它只影响文件的数据部分。而除了数据外，fsync还会同步更新文件的属性。
+`fsync`函数只对由文件描述符fd指定的一个文件起作用，并且等待写磁盘操作结束时才返回。
 
+`fdatasync`函数类似于`fsync`，但是它只影响文件的数据部分。而除了数据外，`fsync`还会同步更新文件的属性。
+
+## 1.9 函数ioctl
+
+`ioctl`用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而`ioctl`命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据通过read/write操作，而串口的波特率、校验位、停止位通过`ioctl`设置，A/D转换的结果通过`read`读取，而A/D转换的精度和工作频率通过`ioctl`设置。
+
+<center>![ioctl工作模式](./figures/1-file-io/ioctl.png)</center>
+
+<center>ioctl 工作模式</center>
+
+```c
+		#inlcude <sys/ioctl.h>
+		#include <termios.h> //终端I/O的ioctl操作需要该头文件。
+		int ioctl(int fd, int request, ...);
+```
+
+fd是某个设备文件描述符。request是ioctl命令，可变参数取决于request。
+
+注意:
+* open命令创建文件呢权限不能超过执行用户的自有权限
+* 如果有O_CREAT参数时，不要忘记mode参数。
 
 
 # 2  文件系统
@@ -383,23 +386,25 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
 
 ### 2.1.1  目录中纪录项文件类型
 
-| 编码   | 文件类型         |
-| ------ | ---------------- |
-| 0      | Unknown          |
-| 1      | Regular file     |
-| 2      | Directory        |
-| 3      | Character device |
-| 4      | Block device     |
-| 5      | Named pipe       |
-| 6      | Socket           |
-| 7      | Symbolic link    |
+| 编码   | 文件类型         |宏(stat->st_mode)|
+| ------ | ---------------- |----------|
+| 0      | Unknown          ||
+| 1      | Regular file     |S_ISREG()|
+| 2      | Directory        |S_ISDIR()|
+| 3      | Character device |S_ISCHR()|
+| 4      | Block device     |S_ISBLK()|
+| 5      | Named pipe       |S_ISFIFO()|
+| 6      | Socket           |S_ISSOCK()|
+| 7      | Symbolic link    |S_ISLNK()|
 
 ### 2.1.2  数据块寻址
 
-    从上图可以看出,索引项Blocks[13]指向两级的间接寻址块,最多可表示(b/4)2+b/4+12个数据块,对于1K的块大小最大可表示64.26MB的文件。索引项Blocks[14]指向三级的间接寻址块,最多可表示(b/4)3+(b/4)2+b/4+12个数据块,对于1K的块大小最大可表示16.06GB的文件。
-    可见,这种寻址方式对于访问不超过12个数据块的小文件是非常快的,访问文件中的任意数据只需要两次读盘操作,一次读inode(也就是读索引项)一次读数据块。而访问大文件中的数据则需要最多五次读盘操作:inode、一级间接寻址块、二级间接寻址块、三级间接寻址块、数据块。实际上,磁盘中的inode和数据块往往已经被内核缓存了,读大文件的效率也不会太低。
+从上图可以看出,索引项Blocks[13]指向两级的间接寻址块,最多可表示(b/4)2+b/4+12个数据块,对于1K的块大小最大可表示64.26MB的文件。索引项Blocks[14]指向三级的间接寻址块,最多可表示(b/4)3+(b/4)2+b/4+12个数据块,对于1K的块大小最大可表示16.06GB的文件。
+
+可见,这种寻址方式对于访问不超过12个数据块的小文件是非常快的,访问文件中的任意数据只需要两次读盘操作,一次读inode(也就是读索引项)一次读数据块。而访问大文件中的数据则需要最多五次读盘操作:inode、一级间接寻址块、二级间接寻址块、三级间接寻址块、数据块。实际上,磁盘中的inode和数据块往往已经被内核缓存了,读大文件的效率也不会太低。
 
 ## 2.2 stat
+
 ```c
     #include <sys/types.h>
     #include <sys/stat.h>
@@ -408,6 +413,7 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
     int stat(const char *path, struct stat *buf);
     int fstat(int fd, struct stat *buf);
     int lstat(const char *path, struct stat *buf);
+    int fstatat(int fd, const char *restrict pathname, struct stat *restrict buf, int flag);
 
     struct stat {
         dev_t st_dev; /* ID of device containing file */
@@ -426,26 +432,41 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
     };
 ```
 
-    stat既有命令，也有同名函数，用来获取文件Inode里面的主要信息，stat跟踪符号链接，lstat不跟踪符号链接
-    stat里面时间辨析：
+一旦给出pathname，stat函数返回与此命名文件相关的信息结构。
+
+stat既有命令，也有同名函数，用来获取文件Inode里面的主要信息，fstat函数获得已在描述符fd上打开文件的相关信息，stat跟踪符号链接，返回链接符号引用文件的信息，lstat与stat类似，但是当命名文件是个连接时，返回链接相关信息，不跟踪符号链接。
+
+timespec结构体按照秒和纳秒定义了时间，至少包括以下两个字段：
+```c
+        time_t  tv_sec;
+        long    tv_nsec;
+```
+stat里面时间辨析：
     atime(最近访问时间): mtime(最近更改时间):指最近修改文件内容的时间 ctime(最近改动时间):指最近改动Inode的时间
 
-##  access
+##  2.3 access
 
+`access`和faccessat函数是按实际用户ID和实际用户组ID进行访问权限测试。
 ```C
      #include <unistd.h>
 
      int access(const char *pathname, int mode);
+     int faccessat(int fd, const char *pathname, int mode, int flag);
 ```
 
-    按用户ID和实际组ID测试，跟踪符号链接，参数mode：
+按用户ID和实际组ID测试，跟踪符号链接，如果测试目标文件是否存在，mode就为F_OK，否则mode是与下表所列常量做或运算。参数mode：
 
- |       |
+ |       |          |
  | ----- | -------------------- |
  | R_OK  | 是否具有读权限       |
  | W_OK  | 是否具有写权限       |
  | X_OK  | 是否具有执行权限     |
  | F_OK  | 测试一个文件是否存在 |
+
+faccessat函数与access函数在下列两种情况下是相同的：一种是pathname参数为绝对路径，另一种是fd参数取值为AT_FDCWD而pathname是相对路径。否则，faccessat计算相对于打开目录得pathname。
+
+flag参数可以用于改变faccessat的行为，如果设置为AT——EACCESS，访问检查是调用进程的有效用户ID和有效组ID，而不是实际用户ID和实际组ID。
+
 
 ## link
 
