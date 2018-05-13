@@ -96,7 +96,7 @@ void	err_ret(const char *fmt, ...){
 	va_end(ap);
 }
 
-void 	err_sys(const char *fmt, ..){
+void 	err_sys(const char *fmt, ...){
 	va_list	ap;
 	va_start(1, errno, fmt, ap);
 	va_end(ap);
@@ -110,7 +110,7 @@ void    err_cont(int error, const char *fmt, ...){
         va_end(ap);
 }
 
-void    err_exit(int error, const char *fmt, ..){
+void    err_exit(int error, const char *fmt, ...){
         va_list ap;
         va_start(1, errno, fmt, ap);
         va_end(ap);
