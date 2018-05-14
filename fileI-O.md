@@ -57,7 +57,7 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 	FILE *		fopen("abc")
 
-## 1.3 open/close
+## 1.3 函數open、create和close
 
 | FLAG       | 作用                                               |
 | ---------- | -------------------------------------------------- |
@@ -73,7 +73,7 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 ### 1.3.1 文件描述符
 
-对于内核而言，所有打开的文件都是通过文件描述符来引用。当读写文件时，使用open或者create返回文件描述符来识别该文件，将其作为参数传送给read或write。一个进程默认打开3个文件描述符，并定义在<unistd.h>中。
+对于内核而言，所有打开的文件都是通过文件描述符来引用。当读写文件时，使用open或者creat返回文件描述符来识别该文件，将其作为参数传送给read或write。一个进程默认打开3个文件描述符，并定义在<unistd.h>中。
 
 	STDIN_FILENO 0
 	STDOUT_FILENO 1
@@ -114,6 +114,16 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 
 以三个参数mode指定文件权限，可以用八进制数表示，比如0644表示-rw-r--r--,也可以用S_IRUSR、S_IWUSR等宏定义按位或起来表示。要注意的是，文件权限由open的mode参数和当前进程的umask共同决定。
 
+函数creat
+
+也可以调用`creat`创建一个新文件
+```c
+	#include <fcntl.h>
+
+	int creat(const char *path, mode_t mode);
+		//此函数等效于open(path, O_WRONLY| O_RDONLY| O_TRUNC, mode)
+```
+
 函数close
 
 最大文件打开个数
@@ -124,16 +134,6 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 通过ulimit -a可以查看和修改文件打开个数
 
 	ulimit -n 4096
-
-函数create
-
-也可以调用create创建一个新文件
-
-	#include <fcntl.h>
-
-	int create(const char *path, mode_t mode);
-		//此函数等效于open(path, O_WRONLY| O_RDONLY| O_TRUNC, mode)
-
 
 ## 1.4 read/write
 

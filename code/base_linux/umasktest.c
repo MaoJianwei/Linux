@@ -9,10 +9,10 @@
 int main(void)
 {
     umask(0);
-    if (create("foo", RWRWRW) < 0)
+    if (creat("foo", RWRWRW) < 0)
         perror("create error for foo");
     umask(S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
-    if (create("bar", RWRWRW) < 0)
+    if (creat("bar", RWRWRW) < 0)
         perror("create error for bar");
     exit(0);
 }
