@@ -403,7 +403,7 @@ inode表占多少个块在格式化时就要决定并写入块组描述符中,mk
 
 可见,这种寻址方式对于访问不超过12个数据块的小文件是非常快的,访问文件中的任意数据只需要两次读盘操作,一次读inode(也就是读索引项)一次读数据块。而访问大文件中的数据则需要最多五次读盘操作:inode、一级间接寻址块、二级间接寻址块、三级间接寻址块、数据块。实际上,磁盘中的inode和数据块往往已经被内核缓存了,读大文件的效率也不会太低。
 
-## 2.2 stat
+## 2.2 函数stat、lstat和fstatat
 
 ```c
     #include <sys/types.h>
@@ -444,7 +444,21 @@ timespec结构体按照秒和纳秒定义了时间，至少包括以下两个字
 stat里面时间辨析：
     atime(最近访问时间): mtime(最近更改时间):指最近修改文件内容的时间 ctime(最近改动时间):指最近改动Inode的时间
 
-##  2.3 access
+文件访问和目录权限
+
+|st_mode屏蔽字|含义|
+|------------|----|
+|S_IRUSR|用户读|
+|S_IWUSR|用户写|
+|S_IXUSR|用户执行|
+|S_IRGRP|组读|
+|S_IWGRP|组写|
+|S_IXGRP|组执行|
+|S_IROTH|其他读|
+|S_IWOTH|其他写|
+|S_IXOTH|其他执行|
+
+##  2.3 函数access
 
 `access`和faccessat函数是按实际用户ID和实际用户组ID进行访问权限测试。
 ```C
@@ -466,6 +480,18 @@ stat里面时间辨析：
 faccessat函数与access函数在下列两种情况下是相同的：一种是pathname参数为绝对路径，另一种是fd参数取值为AT_FDCWD而pathname是相对路径。否则，faccessat计算相对于打开目录得pathname。
 
 flag参数可以用于改变faccessat的行为，如果设置为AT——EACCESS，访问检查是调用进程的有效用户ID和有效组ID，而不是实际用户ID和实际组ID。
+
+## 2.4 函数umask
+
+umask函数为进程设置文件模式创建屏蔽字，并返回之前的值。（这是少数几个没有出错返回函数中的一个。）
+
+```c
+        #include <sys/stat.h>
+
+        mode_t umask(mode_t cmask);
+```
+
+其中cmask参数是由上述9个参数中的若干位按照“或”运算得来。
 
 
 ## link
