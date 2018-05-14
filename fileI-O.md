@@ -57,7 +57,7 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 	FILE *		fopen("abc")
 
-## 1.3 open/close
+## 1.3 函數open、create和close
 
 | FLAG       | 作用                                               |
 | ---------- | -------------------------------------------------- |
@@ -73,7 +73,7 @@ Linux提供资源限制机制，该机制使用了task_struct里面的rlim数组
 
 ### 1.3.1 文件描述符
 
-对于内核而言，所有打开的文件都是通过文件描述符来引用。当读写文件时，使用open或者create返回文件描述符来识别该文件，将其作为参数传送给read或write。一个进程默认打开3个文件描述符，并定义在<unistd.h>中。
+对于内核而言，所有打开的文件都是通过文件描述符来引用。当读写文件时，使用open或者creat返回文件描述符来识别该文件，将其作为参数传送给read或write。一个进程默认打开3个文件描述符，并定义在<unistd.h>中。
 
 	STDIN_FILENO 0
 	STDOUT_FILENO 1
@@ -114,6 +114,16 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 
 以三个参数mode指定文件权限，可以用八进制数表示，比如0644表示-rw-r--r--,也可以用S_IRUSR、S_IWUSR等宏定义按位或起来表示。要注意的是，文件权限由open的mode参数和当前进程的umask共同决定。
 
+函数creat
+
+也可以调用`creat`创建一个新文件
+```c
+	#include <fcntl.h>
+
+	int creat(const char *path, mode_t mode);
+		//此函数等效于open(path, O_WRONLY| O_RDONLY| O_TRUNC, mode)
+```
+
 函数close
 
 最大文件打开个数
@@ -124,16 +134,6 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 通过ulimit -a可以查看和修改文件打开个数
 
 	ulimit -n 4096
-
-函数create
-
-也可以调用create创建一个新文件
-
-	#include <fcntl.h>
-
-	int create(const char *path, mode_t mode);
-		//此函数等效于open(path, O_WRONLY| O_RDONLY| O_TRUNC, mode)
-
 
 ## 1.4 read/write
 
@@ -356,23 +356,24 @@ fd是某个设备文件描述符。request是ioctl命令，可变参数取决于
 1磁盘扇区 = 512Bytes
 1block = 32768bit
 
-    磁盘格式化指令mkfs命令
-    文件系统中存储的最小单位是块(Block),一个块究竟多大是在格式化时确定的,例如mke2fs的-b选项可以设定块大小为1024、2048或4096字节。而上图中启动块(BootBlock)的大小是确定的,就是1KB,启动块是由PC标准规定的,用来存储磁盘分区信息和启
-动信息,任何文件系统都不能使用启动块。启动块之后才是ext2文件系统的开始,ext2文件系统将整个分区划成若干个同样大小的块组(Block Group),每个块组都由以下部分组成。
+磁盘格式化指令mkfs命令
 
-    超级块(Super Block) 描述整个分区的文件系统信息,例如块大小、文件系统版本号、上次mount的时间等等。超级块在每个块组的开头都有一份拷贝。
+文件系统中存储的最小单位是块(Block),一个块究竟多大是在格式化时确定的,例如mke2fs的-b选项可以设定块大小为1024、2048或4096字节。而上图中启动块(BootBlock)的大小是确定的,就是1KB,启动块是由PC标准规定的,用来存储磁盘分区信息和启动信息,任何文件系统都不能使用启动块。启动块之后才是ext2文件系统的开始,ext2文件系统将整个分区划成若干个同样大小的块组(Block Group),每个块组都由以下部分组成。
 
-    块组描述符表(GDT,Group Descriptor Table) 由很多块组描述符组成,整个分区分成多少个块组就对应有多少个块组描述符。每个块组描述符(Group Descriptor)存储一个块组的描述信息,例如在这个块组中从哪里开始是inode表,从哪里开始是数据块,空闲的inode和数据块还有多少个等等。和超级块类似,块组描述符表在每个块组的开头也都有一份拷贝,这些信息是非常重要的,一旦超级块意外损坏就会丢失整个分区的数据,一旦块组描述符意外损坏就会丢失整个块组的数据,因此它们都有多份拷贝。通常内核只用到第0个块组中的拷贝,当执行e2fsck检查文件系统一致性时,第0个块组中的超级块和块组描述符表就会拷贝到其它块组,这样当第0个块组的开头意外损坏时就可以用其它拷贝来恢复,从而减少损失。
+超级块(Super Block) 描述整个分区的文件系统信息,例如块大小、文件系统版本号、上次mount的时间等等。超级块在每个块组的开头都有一份拷贝。
 
-    块位图(Block Bitmap) 一个块组中的块是这样利用的:数据块存储所有文件的数据,比如某个分区的块大小是1024字节,某个文件是2049字节,那么就需要三个数据块来存,即使第三个块只存了一个字节也需要占用一个整块;超级块、块组描述符表、块位图、inode位图、inode表这几部分存储该块组的描述信息。那么如何知道哪些块已经用来存储文件数据或其它描述信息,哪些块仍然空闲可用呢?块位图就是用来描述整个块组中哪些块已用哪些块空闲的,它本身占一个块,其中的每个bit代表本块组中的一个块,这个bit为1表示该块已用,这个bit为0表示该块空闲可用。
+块组描述符表(GDT,Group Descriptor Table) 由很多块组描述符组成,整个分区分成多少个块组就对应有多少个块组描述符。每个块组描述符(Group Descriptor)存储一个块组的描述信息,例如在这个块组中从哪里开始是inode表,从哪里开始是数据块,空闲的inode和数据块还有多少个等等。和超级块类似,块组描述符表在每个块组的开头也都有一份拷贝,这些信息是非常重要的,一旦超级块意外损坏就会丢失整个分区的数据,一旦块组描述符意外损坏就会丢失整个块组的数据,因此它们都有多份拷贝。通常内核只用到第0个块组中的拷贝,当执行e2fsck检查文件系统一致性时,第0个块组中的超级块和块组描述符表就会拷贝到其它块组,这样当第0个块组的开头意外损坏时就可以用其它拷贝来恢复,从而减少损失。
 
-    为什么用df命令统计整个磁盘的已用空间非常快呢?因为只需要查看每个块组的块位图即可,而不需要搜遍整个分区。相反,用du命令查看一个较大目录的已用空间就非常慢,因为不可避免地要搜遍整个目录的所有文件。
+块位图(Block Bitmap) 一个块组中的块是这样利用的:数据块存储所有文件的数据,比如某个分区的块大小是1024字节,某个文件是2049字节,那么就需要三个数据块来存,即使第三个块只存了一个字节也需要占用一个整块;超级块、块组描述符表、块位图、inode位图、inode表这几部分存储该块组的描述信息。那么如何知道哪些块已经用来存储文件数据或其它描述信息,哪些块仍然空闲可用呢?块位图就是用来描述整个块组中哪些块已用哪些块空闲的,它本身占一个块,其中的每个bit代表本块组中的一个块,这个bit为1表示该块已用,这个bit为0表示该块空闲可用。
+
+为什么用df命令统计整个磁盘的已用空间非常快呢?因为只需要查看每个块组的块位图即可,而不需要搜遍整个分区。相反,用du命令查看一个较大目录的已用空间就非常慢,因为不可避免地要搜遍整个目录的所有文件。
 与此相联系的另一个问题是:在格式化一个分区时究竟会划出多少个块组呢?主要的限制在于块位图本身必须只占一个块。用mke2fs格式化时默认块大小是1024字节,可以用-b参数指定块大小,现在设块大小指定为b字节,那么一个块可以有8b个bit,这样大小的一个块
 位图就可以表示8b个块的占用情况,因此一个块组最多可以有8b个块,如果整个分区有s个块,那么就可以有s/(8b)个块组。格式化时可以用-g参数指定一个块组有多少个块,但是通常不需要手动指定,mke2fs工具会计算出最优的数值。
 
-    inode位图(inode Bitmap) 和块位图类似,本身占一个块,其中每个bit表示一个inode是否空闲可用。
+inode位图(inode Bitmap) 和块位图类似,本身占一个块,其中每个bit表示一个inode是否空闲可用。
 
-    inode表(inode Table) 我们知道,一个文件除了数据需要存储之外,一些描述信息也需要存储,例如文件类型(常规、目录、符号链接等),权限,文件大小,创建/修改/访问时间等,也就是ls -l命令看到的那些信息,这些信息存在inode中而不是数据块中。每个文件都有一个inode,一个块组中的所有inode组成了inode表。
+inode表(inode Table) 我们知道,一个文件除了数据需要存储之外,一些描述信息也需要存储,例如文件类型(常规、目录、符号链接等),权限,文件大小,创建/修改/访问时间等,也就是ls -l命令看到的那些信息,这些信息存在inode中而不是数据块中。每个文件都有一个inode,一个块组中的所有inode组成了inode表。
+
 inode表占多少个块在格式化时就要决定并写入块组描述符中,mke2fs格式化工具的默认策略是一个块组有多少个8KB就分配多少个inode。由于数据块占了整个块组的绝大部分,也可以近似认为数据块有多少个8KB就分配多少个inode,换句话说,如果平均每个文件的大小是8KB,当分区存满的时候inode表会得到比较充分的利用,数据块也不浪费。如果这个分区存的都是很大的文件(比如电影),则数据块用完的时候inode会有一些浪费,如果这个分区存的都是很小的文件(比如源代码),则有可能数据块还没用完inode就已经用完了,
 数据块可能有很大的浪费。如果用户在格式化时能够对这个分区以后要存储的文件大小做一个预测,也可以用mke2fs的-i参数手动指定每多少个字节分配一个inode。__一个inode单元128B，保存文件的访问信息，所属用户和群组信息。__
 
@@ -493,21 +494,101 @@ umask函数为进程设置文件模式创建屏蔽字，并返回之前的值。
 
 其中cmask参数是由上述9个参数中的若干位按照“或”运算得来。
 
+## 2.5 函数chmod、fchmod和fchmodat
 
-## link
+chmod、fchmod和fchmodat这3个函数可以使我们改变现有文件的访问权限。
+
+```c
+        #include <sys/stat.h>
+
+        int chmod(const char *pathname, mode_t mode);
+        int fchmod(int fd, mode_t mode);
+        int fchmodat(int fd, const char *pathname, mode_t mode, int flag);
+```
+chmod函数在指定的文件件上执行，fchmod则对一打开的文件进行操作，fchmodat函数与chmod函数在以下两种情况下一致：一种是pathname参数为绝对路径，另一种是fd参数取值为AT_FDCWD而pathname是相对路径。否则，fchmodat计算相对于打开目录（由fd参数指定）的pathname。flag参数可以改变fchmodat的行为，当设置为AT_SYMLINK_NOFOLLOW标志时，不会跟踪符号链接。
+
+##  2.6 函数chown、fchown、fchownat和lchown
+
+下面几个chown函数可以改变文件的用户ID和组ID。如果两个参数woner或group中的任意一个是-1，则对应的ID不变。
+
+```c
+        #include <unistd.h>
+
+        int chown(const char *pathname, uid_t owner, gid_t group);
+        int fchown(int fd, uid_t owner, gid_t group);
+        int fchownat(int fd, const char *pathname, uid_t owner, gid_t group, int flag);
+        int lchown(const char *pathname, uid_t owner, gid_t group);
+        //四个函数的返回值：若成功，返回0， 若失败，返回-1
+```
+
+除了引用的文件是符号链接外，这4个函数操作类似。在符号链接情况下，lchown和fchownat（设置了AT_SYMLINK_NOFOLLOW标志）更改符号链接本身的所有者，而不是符号链接指向文件的所有者。
+
+fchown改变fd参数指向的打开文件的所有者，既然它在一个已打开的文件上操作，就不能用于改变符号链接的所有者。
+
+fchownat在以下两种情况下是相同的：一种是pathname参数为绝对路径，另一种是fd参数取值为AT_FDCWD而pathname是相对路径。这两种情况下，如果flag参数中设置了AT_SYMLINK_NOFOLLOW标志，fchownat与lchown行为相同。如果fd参数设置为打开目录得文件描述符，并且pathname参数是一个相对路径名，fchownat函数计算相对于打开目录得pathname。
+
+## 2.7 文件截断
+
+优势我们需要在文件尾端处截去一些数据缩短文件。讲一个文件长度截断为0是一个特例，在打开文件的时候用O_TRUNC标志可以做到这一点。为了截断文件可以调用函数`truncate`和`ftruncate`。
+
+```c
+        #include <unistd.h>
+
+        int truncate(const char *pathname, off_t length);
+        int ftruncate(int fd, off_t length);
+```
+
+这两个函数将一个现有文件的长度截位断为length，如果该文件长度大于length，则超过length以外的数据就不再能访问。如果以前的长度小于length，则文件长度增加，在以前文件的尾端到新文件尾端之间数据将读作0。
+
+## 2.8 函数link、linkat、unlink、unlinkat和remove
+
+```c
+        #include <unistd.h>
+
+        int link(const char * existingpath, const char *newpath);
+        int linkat(int efd, const char *existingpath, int nfd, const char *newpath, int flag);
+```
+两个函数创建新目录项`newpath`，它引用现有文件`existingpath`。如果`newpath`已经存在，则返回出错。只创建`newpath`中的最后一个分量，路径中其他部分应该存在。
 
 ### link
+
 创建一个硬链接，当`rm`删除文件时，只是删除了目录下记录项和把inode硬链接计数减1，当硬链接计数为0时，才会真正删除文件。<br>
     __硬链接通常要求位于同意文件系统中，POSIX允许跨文件系统__<br>
     __符号链接没有文件系统限制__<br>
     __通常不允许创建目录的硬链接__  会出现死循环<br>
     __创建目录以及增加硬链接计数应当是一个原子操作__<br>
 
-```C
-    #include <unistd.h>
-    
-    int link(const char *oldpath, const char *newpath);
+删除一个现有的目录项，可以调用`unlink`函数
+
+```c
+        #include <unistd.h>
+
+        int unlink(const char *pathname);
+        int unlinkat(int fd, const char *pathname, int flag);
 ```
+这两个函数删除目录项，并将由`pathname`所引用的文件链接技术减1。当计数链接达到0时，该文件才可以删除，另一个条件也可以阻止删除文件的内容--只要有进程打开了该文件，其内容也不能删除。关闭一个文件时，内核首先检查打开该文件进程的个数，如果这个计数达到0，内核会继续检查其链接计数，如果计数也是0，那么久删除文件内容。`unlink`的这一特性常被程序用来确保即使在程序崩溃时，它所创建的文件也不会遗留下来。
+
+### unlink
+
+```c
+    #include <unistd.h>
+
+    int unlink(const char *pathname);
+```
+
+1. 如果是符号链接,删除符号链接
+2. 如果是硬链接,硬链接数减1,当减为0时,释放数据块和inode
+3. 如果文件硬链接数为0,但有进程已打开该文件,并持有文件描述符,则等该进程关闭该文件时,kernel才真正去删除该文件
+4. 利用该特性创建临时文件,先open或creat创建一个文件,马上unlink此文件
+
+我们也可以用`remove`函数来结束对一个文件或者目录的链接，对于文件，`remove`的功能与unlink相同。对于目录，`remove`的功能和`rmdir`相同。
+
+```c
+        #include <stdio.h>
+
+        int remove(const char *pathname);
+```
+
 ### symlink
 
 ```C
@@ -516,35 +597,29 @@ umask函数为进程设置文件模式创建屏蔽字，并返回之前的值。
 ### readlink
 
     读符号链接所指向的文件名，不读文件内容。
-```
+
+```c
     #include <unistd.h>
 
     ssize_t readlink(const char *pathname, char *buf, size_t bufsiz);
 ```
 
-### unlink
+## 函数rename和renameat
 
-```
-    #include <unistd.h>
+文件或者目录可以用rename函数或者renameat函数进行重命名。
 
-    int unlink(const char *pathname);
-```
-1. 如果是符号链接,删除符号链接
-2. 如果是硬链接,硬链接数减1,当减为0时,释放数据块和inode
-3. 如果文件硬链接数为0,但有进程已打开该文件,并持有文件描述符,则等该进程关闭该文件时,kernel才真正去删除该文件
-4. 利用该特性创建临时文件,先open或creat创建一个文件,马上unlink此文件
-
-## rename
-
-```
+```c
     #include <stdio.h>
 
-    int rename(const char *oldpath, const char *newpath);
+    int rename(const char *oldname, const char *newname);
+    int renameat(int oldfd, const char *oldname, int newfd, const char *newname);
 ```
+
+根据oldname是指文件、目录还是链接，有几种情况需要说明。
 
 ## chdir
 
-```
+```c
     #include <unistd.h>
 
     int chdir(const char *path);
