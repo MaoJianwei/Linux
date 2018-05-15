@@ -137,10 +137,10 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 
 ## 1.4 read/write
 
-
+```c
 	#include <unistd.h>
 	ssize_t read(int fd, void *buf, size_t count);
-
+```
 
 返回值：成功返回读取的**字节数**，出错则返回**-1并设置errno**，如果在调用read之前已经到达文件末尾，则这次read返回**0**；
 
@@ -148,27 +148,27 @@ open函数和C标准I/O库的fopen函数细微区别在于：
 
 参数count是请求读取的字节数,读上来的数据保存在缓冲区buf中,同时文件的当前读写位置向后移。注意这个读写位置和使用C标准I/O库时的读写位置有可能不同,这个读写位置是记在内核中的,而使用C标准I/O库时的读写位置是用户空间I/O缓冲区中的位置。比如用fgetc读一个字节,fgetc有可能从内核中预读1024个字节到I/O缓冲区中,再返回第一个字节,这时该文件在内核中记录的读写位置是1024,而在FILE结构体中记录的读写位置是1。注意返回值类型是ssize_t,表示有符号的size_t,这样既可以返回正的字节数、0(表示到达文件末尾)也可以返回负值-1(表示出错)。read函数返回时,返回值说明了buf中前多少个字节是刚读上来的。有些情况下,实际读到的字节数(返回值)会小于请求读的字节数count,例如:
 
-	读常规文件时,在读到count个字节之前已到达文件末尾。例如,距文件末尾还有30个字节而请求读100个字节,则read返回30,下次read将返回0。
-	从终端设备读,通常以行为单位,读到换行符就返回了。
-	从网络读,根据不同的传输层协议和内核缓存机制,返回值可能小于请求的字节数,后面socket编程部分会详细讲解。
+读常规文件时,在读到count个字节之前已到达文件末尾。例如,距文件末尾还有30个字节而请求读100个字节,则read返回30,下次read将返回0。
+从终端设备读,通常以行为单位,读到换行符就返回了。
+从网络读,根据不同的传输层协议和内核缓存机制,返回值可能小于请求的字节数,后面socket编程部分会详细讲解。
 
 write函数向打开的设备或文件中写数据。
-
+```c
 	#include <unistd.h>
 
 	ssize_t write(int fd, <const> void *buf, size_t count);
-
-	返回值：成功返回写入的字节数，出错返回-1并设置errno
+	//返回值：成功返回写入的字节数，出错返回-1并设置errno
+```
 
 write出错的一个常见原因是磁盘已写满，或者超过了一个给定进程的文件长度限制。写常规文件时,write的返回值通常等于请求写的字节数count,而向终端设备或网络写则不一定。
 
 当多个进程共享文件时，可使用pread/pwrite来原子性的定位并执行I/O。
-
+```c
         #include <unistd.h>
 
         ssize_t pread(int fd, void *buf, size_t nbytes, off_t offset);
         ssize_t pwrite(int fd, void *buf, size_t nbytes, off_t offset);
-
+```
 
 ## 1.5 阻塞和非阻塞
 
@@ -184,6 +184,7 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 
 ### 1.5.1 阻塞读终端
 
+```c
 	#include <unistd.h>
 	#include <stdlib.h>
 	int main(void)
@@ -198,6 +199,7 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 	write(STDOUT_FILENO, buf, n);
 	return 0;
 	}
+```
 
 ### 1.5.2  非阻塞读终端
 	轮寻模式
@@ -206,16 +208,16 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 
 ## 1.6  lseek
 
-类似于标准I/O库的`fseek`函数类似，可以移动当前读写位置，但有一个例外，如果文件以O_APEND模式打开，每次写操作都会在文件末尾追加数据，然后讲读写位置移动到新的文件末尾。
+类似于标准I/O库的`fseek`函数类似，可以移动当前读写位置，但有一个例外，如果文件以`O_APEND`模式打开，每次写操作都会在文件末尾追加数据，然后讲读写位置移动到新的文件末尾。
 `fseek`函数在底层调用`lseek`实现。
 
 ### lseek
-
-		#include <sys/types.h>
-		#include <unistd.h>
-		
-		off_t lseek(int fd, off_t offset, int whence);
-
+```c
+        #include <sys/types.h>
+        #include <unistd.h>
+        
+        off_t lseek(int fd, off_t offset, int whence);
+```         
 
 对参数offset的解释与参数whence有关。
 
@@ -225,7 +227,7 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 
 * 若whence是SEEK_END，则该文件的偏移量设置为文件长度加上offset，offset可正可负
 
-若lseek成功执行，则返回新文件的偏移量，为此可以用下列方式确定打开文件当前的偏移量：
+若`lseek`成功执行，则返回新文件的偏移量，为此可以用下列方式确定打开文件当前的偏移量：
 
 		off_t	currpos;
 		currpos = lseek(fd, 0, SEEK_CUR);
@@ -237,30 +239,30 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 2、同时可以获取文件大小
 
 ### fseek函数
-
-		#include <stdio.h>
-		
-		int fseek(FILE *stream, long offset, int whence);
-		
-		long ftell(FILE *stream);
-		
-		void rewind(FILE *stream);
-		
-		int fgetpos(FILE *stream, fpos_t *pos);
-		int fsetpos(FILE *stream, const fpos_t *pos);
-
+```c
+	#include <stdio.h>
+	
+	int fseek(FILE *stream, long offset, int whence);
+	
+	long ftell(FILE *stream);
+	
+	void rewind(FILE *stream);
+	
+	int fgetpos(FILE *stream, fpos_t *pos);
+	int fsetpos(FILE *stream, const fpos_t *pos);
+```
 # 1.7 fcntl
 
-    获取和设置文件访问属性
-
-		#include <unistd.h>
-		#include <fcntl.h>
-		
-		int fcntl(int fd, int cmd, ... /* arg */ );
-		int fcntl(int fd, int cmd);
-		int fcntl(int fd, int cmd, long arg);
-		int fcntl(int fd, int cmd, struct flock *lock);
-
+获取和设置文件访问属性
+```c
+	#include <unistd.h>
+	#include <fcntl.h>
+	
+	int fcntl(int fd, int cmd, ... /* arg */ );
+	int fcntl(int fd, int cmd);
+	int fcntl(int fd, int cmd, long arg);
+	int fcntl(int fd, int cmd, struct flock *lock);
+```
 第三个参数常为整数，但是在说明记录锁时， 可以为指向一个结构的指针。
 
 | 参数        | 作用                 |
@@ -276,12 +278,12 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 ## 1.8 函数dup和dup2
 
 下面两个函数都可以用来复制一个文件描述符。
-
+```c
         #include <unistd.h>
 
         int dup(int fd);
         int dup2(int fd, int fd2);
-
+```
 由`dup`返回的新文件描述符一定是当前可用的最小的文件描述符。对于`dup2`，可以用fd2参数制定新的文件描述符。新的文件描述符在执行时关闭（close-on-exec）标志总是有`dup`函数清除。复制一个文件描述符的另一种方式是使用`fcntl`函数。实际上，调用
 
         dup(fd);
@@ -331,9 +333,9 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 <center>ioctl 工作模式</center>
 
 ```c
-		#inlcude <sys/ioctl.h>
-		#include <termios.h> //终端I/O的ioctl操作需要该头文件。
-		int ioctl(int fd, int request, ...);
+	#inlcude <sys/ioctl.h>
+	#include <termios.h> //终端I/O的ioctl操作需要该头文件。
+	int ioctl(int fd, int request, ...);
 ```
 
 fd是某个设备文件描述符。request是ioctl命令，可变参数取决于request。
@@ -377,13 +379,13 @@ inode表(inode Table) 我们知道,一个文件除了数据需要存储之外,�
 inode表占多少个块在格式化时就要决定并写入块组描述符中,mke2fs格式化工具的默认策略是一个块组有多少个8KB就分配多少个inode。由于数据块占了整个块组的绝大部分,也可以近似认为数据块有多少个8KB就分配多少个inode,换句话说,如果平均每个文件的大小是8KB,当分区存满的时候inode表会得到比较充分的利用,数据块也不浪费。如果这个分区存的都是很大的文件(比如电影),则数据块用完的时候inode会有一些浪费,如果这个分区存的都是很小的文件(比如源代码),则有可能数据块还没用完inode就已经用完了,
 数据块可能有很大的浪费。如果用户在格式化时能够对这个分区以后要存储的文件大小做一个预测,也可以用mke2fs的-i参数手动指定每多少个字节分配一个inode。__一个inode单元128B，保存文件的访问信息，所属用户和群组信息。__
 
-    数据块(Data Block) 根据不同的文件类型有以下几种情况对于常规文件,文件的数据存储在数据块中。
+数据块(Data Block) 根据不同的文件类型有以下几种情况对于常规文件,文件的数据存储在数据块中。
 
-    对于目录,该目录下的所有文件名和目录名存储在数据块中,注意文件名保存在它所在目录的数据块中,除文件名之外,ls -l命令看到的其它信息都保存在该文件的inode中。注意这个概念:目录也是一种文件,是一种特殊类型的文件。
+对于目录,该目录下的所有文件名和目录名存储在数据块中,注意文件名保存在它所在目录的数据块中,除文件名之外,ls -l命令看到的其它信息都保存在该文件的inode中。注意这个概念:目录也是一种文件,是一种特殊类型的文件。
 
-    对于符号链接,如果目标路径名较短则直接保存在inode中以便更快地查找,如果目标路径名较长则分配一个数据块来保存。
+对于符号链接,如果目标路径名较短则直接保存在inode中以便更快地查找,如果目标路径名较长则分配一个数据块来保存。
 
-    设备文件、FIFO和socket等特殊文件没有数据块,设备文件的主设备号和次设备号保存在inode中。
+设备文件、FIFO和socket等特殊文件没有数据块,设备文件的主设备号和次设备号保存在inode中。
 
 ### 2.1.1  目录中纪录项文件类型
 

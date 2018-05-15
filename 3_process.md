@@ -1,4 +1,132 @@
-# ３  进程
+# 3  进程
+
+本节记录进程控制原语，在此之前先了解进程的环境。本章中将学习：当程序执行时，其main函数是如何被调用的；命令行参数是如何传递给新程序的；典型的储存空间布局是什么样式；如何分配另外的储存空间；进程如何使用环境变量；进程的各种终止方式等。
+
+## 3.1 main函数
+
+C程序总是从main函数开始执行。main函数的原型是：
+```c
+    int main(int argc, char *argv[]);
+```
+其中，`argc`是参数数目，`argv`是指向参数各个指针构成的数组。当内核执行C程序时，在调用`main`前先调用一个特殊的启动例程。可执行程序文件将此启动例程指定为**程序的起始地址**——这是由连接编辑器设置的，而连接编辑器是由C编译器调用。启动例程从内核获取命令行参数和环境变量值，然后为按上述方法调用main函数做好安排。
+
+## 3.2 进程终止
+
+有8种方式使进程终止（termination），其中5中是正常终止，他们是：
+
+1. 从main返回；
+2. 调用exit；
+3. 调用_exit或_Exit;
+4. 最后一个线程从起启动例程返回；
+5. 从最后一个线程调用pthread_exit;
+异常终止有3种方式，他们是：
+6. 调用abort；
+7. 接收到一个信号；
+8. 最后一个线程对取消请求做出相应。
+
+### 3.2.1 退出函数
+```c
+    #include <stdlib.h>
+
+    void eixt(int status);
+    void _Exit(int status);
+
+    #include <unistd.h>
+
+    void _exit(int status);
+```
+
+### 3.2.2 函数atexit
+
+按照ISO C的规定，一个进程最多可以登记至多32个函数，这些函数由exit自动调用。我们称这些函数为终止处理程序（exit handler），并调用函数来登记这些函数。
+
+```c
+    #include <stdlib.h>
+
+    int atexit(void (*func)(void));
+```
+
+其中，atexit的参数是一个函数地址，当调用此函数时无需向他传递任何参数，也不期望它返回一个值。exit调用这些函数的顺序与它们登记时的顺序相反。同一函数若登记多次，也会被调用多次。
+
+<center>![一个C程序是如何启动和终止的](./figures/1-file-io/ioctl.png)</center>
+
+注意，内核是程序执行的唯一方法是调用一个exec函数。进程自愿终止的唯一方法是显示或隐式调用_exit或_Exit。进程也可以非自愿地由一个信号使其终止。
+
+## 3.3 命令行参数
+
+当执行一个程序时，调用exec的进程可将命令行参数传递给该新程序。这是UNIX shell的一部分新常规操作。
+
+## 3.4 环境表
+
+每个程序都接收一张环境表。与参数表一样，环境表也是一个字符指针数组，其中每个指针包含一个以null结束的C字符串的地址。全局变量environ则包含了该指针数组的地址：
+
+    extern char **environ;
+
+例如，如果该环境包含5个字符串，每个字符串结尾处都有显示地有一个null字节。我们称environ为环境指针，指针数组为环境表，其中个指针指向的字符串为环境字符串。可用getenv和putenv来访问特定的环境变量。
+
+## 3.5 C程序的储存空间布局
+
+## 3.6 共享库
+
+共享库使得可执行文件中不再需要包含共用的库函数，而只需要在所有进程都可引用的储存区中保存这种库例程的一个副本。程序第一次执行或者第一次调用某个库函数时，用动态链接方法将程序与共享库函数链接。这减少了每个可执行文件的长度，但增加了一些运行时间开销。这种时间开销发生在该程序第一次被执行的时，或者每个共享库第一次被调用时。共享库的另一个优点是可以用库函数的新版本代替老版本而无需对使用该库的程序重新链接编辑（假设参数的数目和类型都没有发生变化）。
+
+## 3.7 储存空间分配
+
+ISO C说明了3个用于储存空间动态分配的函数。
+
+1. malloc，分配指定字节数的储存区。此储存区的初始值不确定。
+2. calloc，为只多功能数量指定长度的对象分配储存空间。该空间每一位（bit）都初始化为0.
+3. realloc，增加或者减少以前分配区的长度。当增加长度时，可能需要将以前分配的内容移到另一个足够大的区域，以便在尾端提供增加的储存区，而新增区域内的初始值则不确定。
+
+```c
+    #include <stdlib.h>
+
+    void *malloc(size_t size);
+    void *calloc(size_t mobj, size_t size);
+    void *realloc(void *ptr, size_t newsize);
+
+    void free(void *ptr);
+```
+这三个函数所返回的指针是适当对其的，使其可用于各种对象。这些分配例程通常使用sbrk(2)系统调用实现。该系统调用扩充（或缩小）进程的堆。
+
+**替代的储存空间分配程序**
+
+有很多可以替代malloc和free的函数。某些系统已经提供代替储存空间分配函数的库，另一些系统只提供标准储存空间分配程序。
+
+1. libmalloc
+2. vmalloc
+3. quick-fit
+4. jemalloc
+5. TCMalloc
+6. alloca
+
+## 3.8 环境变量
+
+环境变量的字符串形式是：
+name = value
+
+ISO C定义了一个函数getenv，可以用其取环境变量的值，但是该标准又称环境的内容是由实现定义的。
+
+```c
+    #include <stdlib.h>
+
+    char *getenv(const char*name);
+```
+函数返回一个指针，它指向name=value字符串中的value。我们应当使用getenv从环境变量中取一个指定环境变量的值，而不是访问environ。
+
+除了获取环境变量的值，有时也需要设置环境变量。但是并不是所有的系统都支持这种能力
+```c
+    #include <stdlib.h>
+
+    int putenv(char *string);   //若成功，返回0；若出错，返回非0
+    int setenv(const char *name, const char *value, int overwrite);
+    int unsetenv(const char *name);
+    //两个函数返回值：若成功，返回0；若出错，返回-1；
+```
+
+## 7.9 函数setjmp和longjmp
+
+在C中，goto语句是不能跨越函数的，而执行这种跳转功能的是函数setjmp和longjmp。这两个函数在处理发生在很深层嵌套函数调用中的出错情况是非常有用的。
 
 我们知道，每个进程在内核中都有一个进程控制块(PCB)来维护进程相关的信息，Linux内核进程控制块是task_struct结构体.
 
@@ -32,19 +160,21 @@
 
 ## 3.1  环境变量
 
-    libc中定义的全局变量environ指向环境变量表，environ没有包含在任何头文件中，所以在使用时要用extern声明。例如：
+libc中定义的全局变量environ指向环境变量表，environ没有包含在任何头文件中，所以在使用时要用extern声明。例如：
 
-        #include <stdio.h>
-        int main(void)
-        {
-            extern char **environ;
-            int i;
-            for(i=0; environ[i]!=NULL; i++)
-                printf("%s\n", environ[i]);
-            return 0;
-        }
-    
-    由于父进程在调用fork创建子进程时会把自己的环境变量表也复制给子进程，所以a.out打印的环境变量和Shell进程的环境变量是相同的。
+```c
+    #include <stdio.h>
+    int main(void)
+    {
+        extern char **environ;
+        int i;
+        for(i=0; environ[i]!=NULL; i++)
+            printf("%s\n", environ[i]);
+        return 0;
+    }
+```    
+
+由于父进程在调用fork创建子进程时会把自己的环境变量表也复制给子进程，所以a.out打印的环境变量和Shell进程的环境变量是相同的。
     
 按照惯例，环境变量字符串都是name=value这样的形式，大多数name由大写字母加下划线组成，一般把name的部分叫做环境变量，value的部分则是环境变量的值。环境变量定义了进程的运行环境，一些比较重要的环境变量的含义如下：
 
@@ -70,56 +200,59 @@ HOME
 * 当前用户主目录的路径，很多程序需要在主目录下保存配置文件，使得每个用户在运行该程序时都有自己的一套配置。
 
 用environ指针可以查看所有环境变量字符串，但是不够方便，如果给出name要在环境变量表中查找它对应的value，可以用getenv函数。
-    
-        #include <stdlib.h>
-        char *getenv(const char *name);
-    
+```c   
+    #include <stdlib.h>
+
+    char *getenv(const char *name);
+```  
 getenv的返回值是指向value的指针，若未找到则为NULL。
 修改环境变量可以用以下函数
-    
+```c
         #include <stdlib.h>
+
         int setenv(const char *name, const char *value, int rewrite);
         void unsetenv(const char *name);
-    
+```    
 putenv和setenv函数若成功则返回为0，若出错则返回非0。
 setenv将环境变量name的值设置为value。如果已存在环境变量name，那么
 若rewrite非0，则覆盖原来的定义；
 若rewrite为0，则不覆盖原来的定义，也不返回错误。
 unsetenv删除name的定义。即使name没有定义也不返回错误。
 例 修改环境变量
-    
-        #include <stdlib.h>
-        #include <stdio.h>
-        int main(void)
-        {
-            printf("PATH=%s\n", getenv("PATH"));
-            setenv("PATH", "hello", 1);
-            printf("PATH=%s\n", getenv("PATH"));
-            return 0;
-        }
-    
+```c    
+    #include <stdlib.h>
+    #include <stdio.h>
+    int main(void)
+    {
+        printf("PATH=%s\n", getenv("PATH"));
+        setenv("PATH", "hello", 1);
+        printf("PATH=%s\n", getenv("PATH"));
+        return 0;
+    }
+```    
 ## 3.2  进程状态
 
     修改进程资源限制，软限制可改，最大值不能超过硬限制，硬限制只有root用户可以修改
-```
-        #include <sys/time.h>
-        #include <sys/resource.h>
-        int getrlimit(int resource, struct rlimit *rlim);
-        int setrlimit(int resource, const struct rlimit *rlim);
+```c
+    #include <sys/time.h>
+    #include <sys/resource.h>
+    int getrlimit(int resource, struct rlimit *rlim);
+    int setrlimit(int resource, const struct rlimit *rlim);
 ```
 
-    查看进程资源限制
-        cat /proc/self/limits
-        ulimit -a
-        
+查看进程资源限制
+```sh
+    cat /proc/self/limits
+    ulimit -a
+```        
 ##  3.3  进程原语
 
 ### 3.3.1  fork
-
-        #include <unistd.h>
-        
-        pid_t fork(void);
-        
+```c
+    #include <unistd.h>
+    
+    pid_t fork(void);
+```        
         子进程复制父进程的0到3G空间和父进程内核中的PCB，但id不同。
         fork调用一次返回两次
         
@@ -129,63 +262,68 @@ unsetenv删除name的定义。即使name没有定义也不返回错误。
         fork()在父进程中的返回值与子进程中的getpid()返回值相同。
 
         fork
-```
-        #include <sys/types.h>
-        #include <unistd.h>
-        #include <stdio.h>
-        #include <stdlib.h>
-        int main(void)
-        {
-            pid_t pid;
-            char *message;
-            int n;
-            pid = fork();
-            if (pid < 0) {
-                perror("fork failed");
-                exit(1);
-            }
-            if (pid == 0) {
-                message = "This is the child\n";
-                n = 6;
-            } else {
-                message = "This is the parent\n";
-                n = 3;
-            }
-            for(; n > 0; n--) {
-                printf(message);
-                sleep(1);
-            }
-            return 0;
+```c
+    #include <sys/types.h>
+    #include <unistd.h>
+    #include <stdio.h>
+    #include <stdlib.h>
+    int main(void)
+    {
+        pid_t pid;
+        char *message;
+        int n;
+        pid = fork();
+        if (pid < 0) {
+            perror("fork failed");
+            exit(1);
         }
+        if (pid == 0) {
+            message = "This is the child\n";
+            n = 6;
+        } else {
+            message = "This is the parent\n";
+            n = 3;
+        }
+        for(; n > 0; n--) {
+            printf(message);
+            sleep(1);
+        }
+        return 0;
+    }
 ```
 
-        进程相关函数
-        getpid/getppid
-        
-            #include <sys/types.h>
-            #include <unistd.h>
-            pid_t getpid(void); //返回调用进程的PID号
-            pid_t getppid(void); //返回调用进程父进程的PID号
-        
+进程相关函数
+    getpid/getppid
+```c        
+    #include <sys/types.h>
+    #include <unistd.h>
+    pid_t getpid(void); //返回调用进程的PID号
+    pid_t getppid(void); //返回调用进程父进程的PID号
+```
         getuid
-        
-            #include <unistd.h>
-            #include <sys/types.h>
-            uid_t getuid(void); //返回实际用户ID
-            uid_t geteuid(void); //返回有效用户ID，如调用sudo指令
-
+```c        
+    #include <unistd.h>
+    #include <sys/types.h>
+    uid_t getuid(void); //返回实际用户ID
+    uid_t geteuid(void); //返回有效用户ID，如调用sudo指令
+```
         getgid
-
-            #include <unistd.h>
-            #include <sys/types.h>
-            gid_t getgid(void); //返回实际用户组ID
-            gid_t getegid(void); //返回有效用户组ID
-
-        vfork
-        * 用于fork后马上调用exec函数
-        * 父子进程，共用同一地址空间,子进程如果没有马上exec而是修改了父进程出得到的变量值，此修改会在父进程中生效
-        * 设计初衷，提高系统效率，减少不必要的开销
-        * 现在fork已经具备读时共享写时复制机制，vfork逐渐废弃
+```c
+    #include <unistd.h>
+    #include <sys/types.h>
+    gid_t getgid(void); //返回实际用户组ID
+    gid_t getegid(void); //返回有效用户组ID
+```
+    
+vfork
+    
+* 用于fork后马上调用exec函数
+    
+* 父子进程，共用同一地址空间,子进程如果没有马上exec而是修改了父进程出得到的变量值，此修改会在父进程中生效
+    
+* 设计初衷，提高系统效率，减少不必要的开销
+    
+* 现在fork已经具备读时共享写时复制机制，vfork逐渐废弃
 
 ### 3.3.2  exec族
 
