@@ -386,8 +386,38 @@ __孤儿进程__: 父进程先于子进程结束，则子进程成为孤儿进�
         }
 ```
 
+## 8.7 函数waitid
 
-        
+Single UNIX Specification包括了两一个取得进程中止状态的函数——waitid，此函数类似于waitpid，但是提供了更多的灵活性。
+
+```c
+	#include <sys/wait.h>
+
+	int waitid(idtype_ idtype, id_t id, siginfo_t *infop, int options);
+	//返回值：若成功，返回0；若失败，返回-1
+```
+与waitpid相似，waitid允许一个进程指定要等待的子进程。但它采用两个不同的参数表示要等待的子进程所属的类型，而不是将此进程ID或进程组ID组合成一个参数。id参数的作用于idtype的值相关。该函数支持的idtype类型如下：
+* P_PID 等待一特定进程。
+* P_PGID 等待一特定进程组中任意进程。
+* P_ALL 等待任一子进程。
+
+options则是按照预定标记取或运算。
+
+## 8.8 函数wait3和wait4
+
+大多数UNIX系统实现提供了另外两个函数wait3和wait4。这两个函数是从BSD分支上沿袭下来的，这与附加参数有关。改参数允许内核返回由终止进程及其所有子进程使用的资源概况。包括用户CPU时间总量、系统CPU时间总量、缺页次数、接受到信号的次数等。
+
+```c
+       #include <sys/types.h>
+       #include <sys/time.h>
+       #include <sys/resource.h>
+       #include <sys/wait.h>
+
+       pid_t wait3(int *status, int options, struct rusage *rusage);
+
+       pid_t wait4(pid_t pid, int *status, int options, struct rusage *rusage);
+	//函数返回值：若成功，返回进程ID；若失败，返回-1
+```
 例 waitpid
 ```c
     #include <sys/types.h>
@@ -429,66 +459,46 @@ wait阻塞函数，阻塞等待子进程结束waitpid 4种情况 < -1 = -1 = 0 >
 
 获取进程退出状态的函数见manpages
 
+## 8.9 竞争条件
 
+当多个进程都企图对共享数据进行某种处理，而最后的结果又取决于进程运行的顺序时，我们认为发生了竞争条件。如果在fork后的某种逻辑显示或隐式地依赖于在fork之后是父进程先运行还是子进程先运行，那么fork函数就会是竞争条件活跃的滋生地。通常我们不能预料那个进程先运行。即使我们知道那个进程先运行，再该进程开始运行后所发生的事情也依赖于系统负载以及内核的调度算法。
 
-
+如果一个进程希望等待一个子进程终止，则它必须调用wait函数中的一个。如果一个进程要等待其父进程终止，可以使用下列循环：
 ```c
-    #include <sys/types.h>
-    #include <unistd.h>
-    #include <stdio.h>
-    #include <stdlib.h>
-    int main(void)
-    {
-        pid_t pid;
-        char *message;
-        int n;
-        pid = fork();
-        if (pid < 0) {
-            perror("fork failed");
-            exit(1);
-        }
-        if (pid == 0) {
-            message = "This is the child\n";
-            n = 6;
-        } else {
-            message = "This is the parent\n";
-            n = 3;
-        }
-        for(; n > 0; n--) {
-            printf(message);
-            sleep(1);
-        }
-        return 0;
-    }
+    while(getppid() != 1)
+    sleep(1);
 ```
+这种形式的循环称为轮训，它的问题是浪费了CPU时间，因为调用者每隔1s都被唤醒，然后进行条件测试。为了避免竞争条件和轮训，在多个进程之间需要某种形式的信号发送和接收的方法。在UNIX中可以采用信号机制。
 
+### 3.10 函数exec族
 
-### 3.3.2  exec族
+用fork创建子进程后执行的是和父进程相同的程序（但有可能执行不同的代码分支），子进程往往要调用一种exec函数以执行另一个程序。当进程调用一种exec函数时，该进程的用户空间代码和数据完全被新程序替换，从新程序的启动例程开始执行。调用exec并不创建新进程，所以调用exec前后该进程的id并未改变。exec只是用磁盘傻瓜的一个新的程序替换了当前进程的正文段、数据段、堆段和栈段。其实有7种不同的exec函数，统称exec函数，这些exec函数使得UNIX系统更加完善。用fork可以创建新的进程，用exec可以初始执行新的程序，。exit函数和wait函数处理终止和等待终止。这是我们需要的基本的进程控制原语。
+```c
+    #include <unistd.h>
+    extern char **environ
+    int execl(const char *path, const char *arg, ...
+                    /* (char  *) NULL */);
+    int execle(const char *path, const char *arg, ...
+                    /*, (char *) NULL, char * const envp[] */);
+    int execlp(const char *file, const char *arg, ...
+                    /* (char  *) NULL */);
+    int execv(const char *path, char *const argv[]);
+    int execvp(const char *file, char *const argv[]);
+    int execvpe(const char *file, char *const argv[],
+                    char *const envp[]);
+    int fexecve(int fd, char *const argv[], char *const envp[]);
+```
+这些函数如果调用成功则加载新的程序从启动代码开始执行，不再返回，如果调用出错则返回-1，所以exec函数只有出错的返回值而没有成功的返回值。
 
-        用fork创建子进程后执行的是和父进程相同的程序（但有可能执行不同的代码分支），子进程往往要调用一种exec函数以执行另一个程序。当进程调用一种exec函数时，该进程的用户空间代码和数据完全被新程序替换，从新程序的启动例程开始执行。调用exec并不创建新进程，所以调用exec前后该进程的id并未改变。其实有六种以exec开头的函数，统称exec函数：
+这些函数原型看起来很容易混，但只要掌握了规律就很好记。不带字母p（表示path）的exec函数第一个参数必须是程序的相对路径或绝对路径，例如“/bin/ls”或“./a.out”，而不能是“ls”或“a.out”。对于带字母p的函数：
 
-           #include <unistd.h>
+如果参数中包含/，则将其视为路径名。否则视为不带路径的程序名，在PATH环境变量的目录列表中搜索这个程序。
 
-           extern char **environ;
+带有字母l（表示list）的exec函数要求将新程序的每个命令行参数都当作一个参数传给它，命令行参数的个数是可变的，因此函数原型中有…，…中的最后一个可变参数应该是NULL，起sentinel的作用。对于带有字母v（表示vector）的函数，则应该先构造一个指向各参数的指针数组，然后将该数组的首地址当作参数传给它，数组中的最后一个指针也应该是NULL，就像main函数的argv参数或者环境变量表一样。
 
-           int execl(const char *path, const char *arg, ...
-                           /* (char  *) NULL */);
-           int execlp(const char *file, const char *arg, ...
-                           /* (char  *) NULL */);
-           int execle(const char *path, const char *arg, ...
-                           /*, (char *) NULL, char * const envp[] */);
-           int execv(const char *path, char *const argv[]);
-           int execvp(const char *file, char *const argv[]);
-           int execvpe(const char *file, char *const argv[],
-                           char *const envp[]);
+对于以e（表示environment）结尾的exec函数，可以把一份新的环境变量表传给它，其他exec函数仍使用当前的环境变量表执行新程序。
 
-        这些函数如果调用成功则加载新的程序从启动代码开始执行，不再返回，如果调用出错则返回-1，所以exec函数只有出错的返回值而没有成功的返回值。
-        这些函数原型看起来很容易混，但只要掌握了规律就很好记。不带字母p（表示path）的exec函数第一个参数必须是程序的相对路径或绝对路径，例如“/bin/ls”或“./a.out”，而不能是“ls”或“a.out”。对于带字母p的函数：
-        如果参数中包含/，则将其视为路径名。
-        否则视为不带路径的程序名，在PATH环境变量的目录列表中搜索这个程序。
-        带有字母l（表示list）的exec函数要求将新程序的每个命令行参数都当作一个参数传给它，命令行参数的个数是可变的，因此函数原型中有…，…中的最后一个可变参数应该是NULL，起sentinel的作用。对于带有字母v（表示vector）的函数，则应该先构造一个指向各参数的指针数组，然后将该数组的首地址当作参数传给它，数组中的最后一个指针也应该是NULL，就像main函数的argv参数或者环境变量表一样。
-        对于以e（表示environment）结尾的exec函数，可以把一份新的环境变量表传给它，其他exec函数仍使用当前的环境变量表执行新程序。
-        exec调用举例如下：
+exec调用举例如下：
 
         char *const ps_argv[] ={"ps", "-o", "pid,ppid,pgrp,session,tpgid,comm", NULL};
         char *const ps_envp[] ={"PATH=/bin:/usr/bin", "TERM=console", NULL};
@@ -499,68 +509,106 @@ wait阻塞函数，阻塞等待子进程结束waitpid 4种情况 < -1 = -1 = 0 >
         execlp("ps", "ps", "-o", "pid,ppid,pgrp,session,tpgid,comm", NULL);
         execvp("ps", ps_argv);
 
-        事实上，只有execve()是真正的系统调用，其它五个函数最终都调用execve()，所以execve()在man手册第2节，其它函数在man手册第3节。这些函数之间的关系如下图所示。
+事实上，只有execve()是真正的系统调用，另外6个只是库函数，它们最终都调用execve()，所以execve()在man手册第2节，其它函数在man手册第3节。这些函数之间的关系如下图所示。
+[7个exec函数之间的关系]
 
-        一个完整的例子：
-```
-        #include <unistd.h>
-        #include <stdlib.h>
-        int main(void)
-        {
+一个完整的例子：
+```c
+    #include <unistd.h>
+    #include <stdlib.h>
+    int main(void)
+    {
         execlp("ps", "ps", "-o", "pid,ppid,pgrp,session,tpgid,comm", NULL);
         perror("exec ps");
         exit(1);
-        }
+    }
 ```
 
-        由于exec函数只有错误返回值，只要返回了一定是出错了，所以不需要判断它的返回值，直接在后面调用perror即可。注意在调用execlp时传了两个“ps”参数，第一个“ps”是程序名，execlp函数要在PATH环境变量中找到这个程序并执行它，而第二个“ps”是第一个命令行参数，execlp函数并不关心它的值，只是简单地把它传给ps程序，ps程序可以通过main函数的argv[0]取到这个参数。
-        调用exec后，原来打开的文件描述符仍然是打开的。利用这一点可以实现I/O重定向。
-        先看一个简单的例子，把标准输入转成大写然后打印到标准输出：
-        例 upper
+由于exec函数只有错误返回值，只要返回了一定是出错了，所以不需要判断它的返回值，直接在后面调用perror即可。注意在调用execlp时传了两个“ps”参数，第一个“ps”是程序名，execlp函数要在PATH环境变量中找到这个程序并执行它，而第二个“ps”是第一个命令行参数，execlp函数并不关心它的值，只是简单地把它传给ps程序，ps程序可以通过main函数的argv[0]取到这个参数。
 
-```
-        /* upper.c */
-        #include <stdio.h>
-        int main(void)
-        {
-        int ch;
-        while((ch = getchar()) != EOF) {
-        putchar(toupper(ch));
-        }
-        return 0;
-        }
+调用exec后，原来打开的文件描述符仍然是打开的。利用这一点可以实现I/O重定向。
 
-        例 wrapper
+先看一个简单的例子，把标准输入转成大写然后打印到标准输出：
 
-        /* wrapper.c */
-        #include <unistd.h>
-        #include <stdlib.h>
-        #include <stdio.h>
-        #include <fcntl.h>
-        int main(int argc, char *argv[])
-        {
-        int fd;
-        if (argc != 2) {
-        fputs("usage: wrapper file\n", stderr);
-        exit(1);
-        }
-        fd = open(argv[1], O_RDONLY);
-        if(fd<0) {
-        perror("open");
-        exit(1);
-        }
-        dup2(fd, STDIN_FILENO);
-        close(fd);
-        execl("./upper", "upper", NULL);
-        perror("exec ./upper");
-        exit(1);
-        }
+例 upper
+
+```c
+    /* upper.c */
+    #include <stdio.h>
+    int main(void)
+    {
+    int ch;
+    while((ch = getchar()) != EOF) {
+    putchar(toupper(ch));
+    }
+    return 0;
+    }
 ```
 
-        wrapper程序将命令行参数当作文件名打开，将标准输入重定向到这个文件，然后调用exec执行upper程序，这时原来打开的文件描述符仍然是打开的，upper程序只负责从标准输入读入字符转成大写，并不关心标准输入对应的是文件还是终端。运行结果如下：
+例 wrapper
+```c
+    /* wrapper.c */
+    #include <unistd.h>
+    #include <stdlib.h>
+    #include <stdio.h>
+    #include <fcntl.h>
+    int main(int argc, char *argv[])
+    {
+    int fd;
+    if (argc != 2) {
+    fputs("usage: wrapper file\n", stderr);
+    exit(1);
+    }
+    fd = open(argv[1], O_RDONLY);
+    if(fd<0) {
+    perror("open");
+    exit(1);
+    }
+    dup2(fd, STDIN_FILENO);
+    close(fd);
+    execl("./upper", "upper", NULL);
+    perror("exec ./upper");
+    exit(1);
+    }
+```
 
-        exec族
-        l 命令行参数列表
-        p 搜素file时使用path变量
-        v 使用命令行参数数组
-        e 使用环境变量数组,不使用进程原有的环境变量，设置新加载程序运行的环境变量
+wrapper程序将命令行参数当作文件名打开，将标准输入重定向到这个文件，然后调用exec执行upper程序，这时原来打开的文件描述符仍然是打开的，upper程序只负责从标准输入读入字符转成大写，并不关心标准输入对应的是文件还是终端。运行结果如下：
+
+exec族
+* l 命令行参数列表
+* p 搜素file时使用path变量
+* v 使用命令行参数数组
+* e 使用环境变量数组,不使用进程原有的环境变量，设置新加载程序运行的环境变量
+
+## 8.11 更改用户ID和更改组ID
+
+在UNIX系统中，特权以及访问控制，是基于用户ID和组ID的。当程序需要增加特权，或需要访问当前并不允许访问的资源时，我们需要更换自己的ID或组ID，使得新ID具有合适的特权或访问权限。于此类似，当程序需要降低其特权或阻止对某些资源的访问时，也需要更换用户ID或组ID，新ID不具有相应的特权或访问权限。
+
+一般而言，在设计应用时，我们总试图采用最小特权（least privilege）模型。
+
+可以用setuid函数设置实际用户ID和有效用户ID。于此类似，可以用setgid函数设置实际组ID和有效组ID
+
+```c
+    #include <unistd.h>
+
+    int setuid(uid_t uid);
+    int setgid(gid_t gid);
+```
+若进程具有超级用户特权，则setid函数将实际用户ID、有效用户ID以及保存的设置用户ID设置为uid。
+
+若进程没有超级用户权限，但是uid等于实际用户ID或保存的设置用户ID，则setuid只将有效用户ID设置为uid，不更改实际用户ID和保存的设置用户ID。
+
+如果上面的条件都不满足，则errno设置为EPERM，并返回-1。
+
+## 8.12 解释器文件
+
+所有现今的UNIX都支持解释器文件。这种文件本质是文本文件，其起始的形式是：
+
+\#! pathname[optional-argument]
+
+在感叹号和pathname之间的空格是可选的。最常见的解释器文件以下列行开始：
+
+\#! /bin/sh
+
+pathname通常是绝对路径名，对它不进行什么特殊处理（不使用PATH进行路径搜索）。这种文件的识别是由内核作为exec系统调用处理的一部分完成的。内核调用exec函数的进程实际执行的并不是该解释器文件，二是在该解释器文件第一行所指定的文件。
+

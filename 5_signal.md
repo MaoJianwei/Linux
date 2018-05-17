@@ -5,12 +5,11 @@
 ### 5.1.1 信号编号
 
 查看linux系统信号
-
+```sh
     kill -l
-
-xingwenpeng@ubuntu:~$ kill -l
-
------|-------|--------|--------|---------
+```
+||||||
+----------|-------|--------|--------|---------
 1) SIGHUP |2) SIGINT |3) SIGQUIT| 4) SIGILL |5) SIGTRAP
 6) SIGABRT |7) SIGBUS |8) SIGFPE |9) SIGKILL |10) SIGUSR1
 11) SIGSEGV |12) SIGUSR2 |13) SIGPIPE |14) SIGALRM |15) SIGTERM
@@ -25,7 +24,6 @@ xingwenpeng@ubuntu:~$ kill -l
 58) SIGRTMAX-6 |59) SIGRTMAX-5| 60) SIGRTMAX-4 |61) SIGRTMAX-3| 62) SIGRTMAX-2
 63) SIGRTMAX-1 |64) SIGRTMAX
 
-
 ### 5.1.2 信号机制
 
 man 7 signal
@@ -39,7 +37,8 @@ First the signals described in the original POSIX.1-1990 standard.
 
 Signal Value Action Comment
 
-----|---|---
+|||||
+----|---|---|-----
 SIGHUP |1 |Term| Hangup detected on controlling terminal or death of controlling process
 SIGINT |2| Term| Interrupt from keyboard
 SIGQUIT |3 |Core |Quit from keyboard
@@ -62,9 +61,11 @@ SIGTTOU |22,22,27| Stop| tty output for background process
 The signals SIGKILL and SIGSTOP cannot be caught, blocked, or ignored.
 
 表中第一列是各信号的宏定义名称，第二列是各信号的编号，第三列是默认处理动作:
+
 Term表示终止当前进程。
 
 Core表示终止当前进程并且Core Dump（Core Dump 用于gdb调试）。
+
 Ign表示忽略该信号。
 
 Stop表示停止当前进程。
@@ -77,9 +78,9 @@ Cont表示继续执行先前停止的进程。
 
 ####  终端特殊按键
 
-ctl+c SIGINT
-ctl+z SIGTSTP
-ctl+\ SIGQUIT
++ ctl+c SIGINT
++ ctl+z SIGTSTP
++ ctl+\ SIGQUIT
 
 ####  硬件异常
 * 除0操作
@@ -88,9 +89,10 @@ ctl+\ SIGQUIT
 ####  kill函数或者kill命令
 
 不过，kill向调用者返回测试结果时，原来存在的被测试结果可能刚终止
-
+```c
     int kill (pid_t pid, int sig)
-    	pid > 0
+    /*
+		pid > 0
     		sig发送给ID为pid的进程
     	pid == 0
     		sig发送给与发送进程同组的所有进程
@@ -99,22 +101,23 @@ ctl+\ SIGQUIT
     	pid = -1
     		sig发送给发送进程有权限向他们发送信号的系统上的所有进程
     	sig为0时，用于检测，特定的pid进程是否存在，返回-1
-
+	*/
+```
 除此之外还有`raise`和`abort`函数
-
+```c
     int raise(int sig)	//自己向自己发送信号
     void abort(void)	//调用进程向自己发送SIGABRT信号
-
+```
 #### 某种软件条件已发生
 
-定时器`alarm`到时时，进程向自己发送SIGALRM信号，每个进程只有一个定时器
+定时器`alarm`到时时，进程向自己发送SIGALRM信号，每个进程**只有一个定时器**
 
-    
+```c  
     unsigned int alarm(unsigned int seconds)	//返回值为未到达的秒数，到达设定时间后返回SIGALRM信号
-
+```
 例：
-
-    #include <unsitd.h>
+```c
+    #include <unistd.h>
     #include <stdio.h>
     
     int main(void){
@@ -124,7 +127,7 @@ ctl+\ SIGQUIT
     	printf("counter = %d \n", counter);
     return 0;
     }
-
+```
 管道读端关闭，写端写数据
 
 ### 5.1.4  信号产生的原因

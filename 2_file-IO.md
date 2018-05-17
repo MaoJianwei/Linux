@@ -328,9 +328,11 @@ write出错的一个常见原因是磁盘已写满，或者超过了一个给定
 
 `ioctl`用于向设备发控制和配置命令，有些命令也需要读写一些数据，但是这些数据是不能用read/write读写的，称为Out-of-Band数据。也就是说，read/write读写数据是in-band数据，是I/O操作的主体。而`ioctl`命令传送的是控制信息，其中的数据是辅助的数据。例如，在串口线上收发数据通过read/write操作，而串口的波特率、校验位、停止位通过`ioctl`设置，A/D转换的结果通过`read`读取，而A/D转换的精度和工作频率通过`ioctl`设置。
 
-<center>![ioctl工作模式](./figures/1-file-io/ioctl.png)</center>
+<center>
 
-<center>ioctl 工作模式</center>
+![ioctl工作模式](./figures/1-file-io/ioctl.png)
+
+ioctl 工作模式</center>
 
 ```c
 	#inlcude <sys/ioctl.h>
