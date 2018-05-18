@@ -656,3 +656,90 @@ ISO C定义了system函数，但是其对系统的依赖性很强。
 3. 否则所有3个函数（fork、exec和waitpid）都成功，那么system的返回值是shell的终止状态，其格式已经在waitpid中说明。
 
 使用system而不是直接使用fork和exec的优点是：system进行了所需的各种出错处理以及各种信号处理。
+
+## 8.14 进程会计
+
+大多数UNIX系统会提供了一个选项以进行进程会计处理。启用该选项后，每当进程结束时，内核就会写一个会计记录。单行的会计记录包含总量较小的二进制数据，一般包括命令名、所使用的CPU总量、用户组ID和组ID、启动时间等。
+
+```c
+    #include <sys/acct.h>
+
+    //acct("/var/log/pacct");
+```
+
+会计记录所需的各个数据都是由内核保存在进程表中，并在一个新进程被创建时初始化（如fork之后再子进程中）。进程中只会产生两个后果。
+
+第一，我们不能获取永远不终止的进程的会计记录。
+
+第二，在会计文件中记录的顺序对应于进程结束的顺序，而不是它们启动的顺序。
+
+## 8.15 用户标识
+
+任意进程都可以得到其实际用户ID和有效用户ID及组ID。但是我们有时希望找到运行该程序用户的登录名。我么可以调用getpwuid(getpid())，但是一个用户有多个登录名，这些登录名又对应着同一个用户ID，又将如何呢？（一个人在口令文件中可以有多个登录项，但是他们的用户ID相同，但登陆的shell不同。）系统通常会记录用户登录时所使用的名字，用getlogin函数可以获取此登录名。
+
+```c
+    #include <unistd.h>
+
+    char *getlogin(void);
+    //返回值：若成功，返回指向登录名字符串的指针；若失败，返回NULL
+```
+如果调用此函数时没有连接到用户登录时所用的终端，则函数会失败。通常称这些进程为守护进程。
+
+## 8.16 进程调度
+
+UNIX系统对于进程提供的只是基于优先级的醋粒度的控制。调度策略和调度优先级是由内核确定的。进程可以通过调整nice值选择以更低优先级运行（通过调整nice值降低它对CPU的占有，因此该进程是“友好的”）。只有特权进程允许提高调度权限。
+
+进程可以通过nice函数获取或更改自己的nice值，使用这个函数，进程只能影响自己的nice值，不能影响其他任何进程的nice值。
+```c
+    #include <unistd.h>
+
+    int nice(int incr);
+```
+
+incr参数被增加到调进程nice值上。如果incr太大，系统直接把它降到最大合法值，不给出提示。类似的如果incr太小，系统也会把它提高到最小化合法值。由于-1是合法的成功返回值，在调用nice函数前需要清除errno，在nice函数返回-1时，需要检查它的值。如果nice调用成功并且返回-1，那么errno仍然为0。如果errno部位0.如果errno部位0，说明nice调用失败。
+
+getpriority函数可以像nice函数那样获取进程nice值，但是getpriority还可以获取一组相关进程的nice值。
+
+```c
+    #include <sys/resource.h>
+
+    int getpriority(int which, id_t who);
+    //返回值：若成功，返回-NZERO~NZERO-1之间的nice值；若出错，返回-1
+```
+which的参数可以取已下三个值之一：PRIO_PROCESS表示进程，PRIO_PGRP表示进程组，PRIO_USER表示用户ID。which参数控制who参数是怎么解释的，who参数选择感兴趣的一个或多个进程。如果who参数为0，表示调用进程、进程组或者用户（取决于which参数的值）。
+
+setpriority函数可用于为进程、进程组和属于特定用户ID的所有进程设置优先级。
+```c
+    #include <sys/resource.h>
+
+    int setpriority(int which, id_t who, int value);
+    //返回值：若成功，返回0；若失败，返回-1
+```
+
+参数which和who与getpriority函数中相同。value加到NZERO上，然后变成新的nice值。
+
+## 8.17 进程时间
+
+在之前说明了我们可以度量的3个时间：墙上时钟时间、用户CPU时间和系统CPU时间。任一进程都可调用times函数获得它自己以及终止子进程的上述值。
+
+```c
+    #include <sys/times.h>
+
+    clock_t times(struct tms *buf);
+    //返回值：若成功，返回流逝时间的墙上时钟时间（以时钟滴答数为单位）；若出错，返回-1
+```
+
+此函数填写由buf指向的tms结构，该结构定义如下：
+```c
+    struct tms{
+        clock_t tms_utime;   /* user CPU time */
+        clock_t tms_stime;   /* system CPU time */
+        clock_t tms_cutime;   /* user CPU time, terminated children */
+        clock_t tms_cstime;   /* system CPU time, terminated children */
+    }
+```
+对于UNIX环境中的高级编程而言，完整地了解UNIX的进程控制是非常重要的。其中必须熟练掌握的只有几个函数——fork，exec系列、_exit、wait和waitpid。很多应用程序都使用这些简单的函数。fork函数也给了我们一个了解竞争条件的机会。
+
+本节说明了system函数和进程会计，这也使我们能进一步了解所有这些进程控制函数。本章还说明了exec函数的另一种变体：解释器文件及它们的工作方式。对各种不同用户ID和组ID（实际、有效和保存的）理解，对编写安全的设置用户ID程序是至关重要的。
+
+在了解进程和子进程的基础上，下一章将进一步说明进程和其他进程的关系——会话和作业控制。
