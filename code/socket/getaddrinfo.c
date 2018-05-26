@@ -40,7 +40,7 @@ void print_type(struct addrinfo *aip){
         case SOCK_SEQPACKET:
             printf("seqpacket");
             break;
-        case SOCK_SOCK_RAW:
+        case SOCK_RAW:
             printf("raw");
             break;
         default:
@@ -93,7 +93,7 @@ int main(int agrc, char *argv[]){
     struct addrinfo     hints;
     struct sockaddr_in  *sinp;
     const char          *addr;
-    int                 err;
+    int                 s;
     char                abuf[INET_ADDRSTRLEN];
 
     if(argc != 3)
@@ -124,11 +124,11 @@ int main(int agrc, char *argv[]){
         print_type(rp);
         print_protocol(rp);
         printf("\n\thost %s", rp->ai_canonname?rp->ai_canonname:"-");
-        if(rp->family == AF_INET){
+        if(rp->ai_family == AF_INET){
             sinp = (struct sockaddr_in *)rp->ai_addr;
             addr = inet_ntop(AF_INET, &sinp->sin_addr, abuf, INET_ADDRSTRLEN);
             printf(" address %s", addr?addr:"unknown");
-            printf(" prot %d", ntohs(sinp->sin_port))
+            printf(" prot %d", ntohs(sinp->sin_port));
         }
         printf("\n");
     }
