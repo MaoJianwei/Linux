@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
-#define INET_ADDRSTRLEN 500
+#define LEN 500
 
 void print_family(struct addrinfo *aip){
     printf(" family ");
@@ -48,7 +48,7 @@ void print_type(struct addrinfo *aip){
     }
 }
 
-void print_protocol(struct addrinfo *arp){
+void print_protocol(struct addrinfo *aip){
     printf(" protocol ");
     switch (aip->ai_protocol){
         case 0:
@@ -88,16 +88,16 @@ void print_flags(struct addrinfo *aip){
     }
 }
 
-int main(int agrc, char *argv[]){
+int main(int argc, char *argv[]){
     struct addrinfo     *result, *rp;
     struct addrinfo     hints;
     struct sockaddr_in  *sinp;
     const char          *addr;
     int                 s;
-    char                abuf[INET_ADDRSTRLEN];
+    char                abuf[LEN];
 
     if(argc != 3)
-        perror("usage: %s nodename service", argv[0]);
+        fprintf(stderr, "usage: %s nodename service", argv[0]);
     hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
     hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
     hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
@@ -118,7 +118,7 @@ int main(int agrc, char *argv[]){
       If socket(2) (or bind(2)) fails, we (close the socket
       and) try the next address. */
 
-    for(rp->result; rp != NULL; rp = rp->ai_next){
+    for(rp = result; rp != NULL; rp = rp->ai_next){
         print_family(rp);
         print_flags(rp);
         print_type(rp);
