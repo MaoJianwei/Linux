@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 
+#define INET_ADDRSTRLEN 500
 
 void print_family(struct addrinfo *aip){
     printf(" family ");
@@ -67,28 +68,28 @@ void print_protocol(struct addrinfo *arp){
     }
 }
 
-void printf_flags(struct addrinfo *aip){
+void print_flags(struct addrinfo *aip){
     printf("flags");
     if(aip->ai_flags==0)
         printf(" 0 ");
     else{
-        if(aip->flags & AI_PASSIVE)
+        if(aip->ai_flags & AI_PASSIVE)
             printf(" passvie");
-        if(aip->flags & AI_CANONNAME)
+        if(aip->ai_flags & AI_CANONNAME)
             printf(" canon");
-        if(aip->flags & AI_NUMERICHOST)
+        if(aip->ai_flags & AI_NUMERICHOST)
             printf(" numhost");
-        if(aip->flags & AI_NUMERICSERV)
+        if(aip->ai_flags & AI_NUMERICSERV)
             printf(" numserv");
-        if(aip->flags & AI_V4MAPPED)
+        if(aip->ai_flags & AI_V4MAPPED)
             printf(" v4mapped");
-        if(aip->flags & AI_ALL)
+        if(aip->ai_flags & AI_ALL)
             printf(" all");
     }
 }
 
 int main(int agrc, char *argv[]){
-    struct addrinfo     *ailist, *aip;
+    struct addrinfo     *result, *rp;
     struct addrinfo     hints;
     struct sockaddr_in  *sinp;
     const char          *addr;
@@ -97,5 +98,39 @@ int main(int agrc, char *argv[]){
 
     if(argc != 3)
         perror("usage: %s nodename service", argv[0]);
-    hints.ai
+    hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
+    hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
+    hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
+    hints.ai_protocol = 0;          /* Any protocol */
+    hints.ai_addrlen = 0;
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+
+    s = getaddrinfo(NULL, argv[1], &hints, &result);
+    if (s != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(s));
+        exit(EXIT_FAILURE);
+    }
+
+   /* getaddrinfo() returns a list of address structures.
+      Try each address until we successfully bind(2).
+      If socket(2) (or bind(2)) fails, we (close the socket
+      and) try the next address. */
+
+    for(rp->result; rp != NULL; rp = rp->ai_next){
+        print_family(rp);
+        print_flags(rp);
+        print_type(rp);
+        print_protocol(rp);
+        printf("\n\thost %s", rp->ai_canonname?rp->ai_canonname:"-");
+        if(rp->family == AF_INET){
+            sinp = (struct sockaddr_in *)rp->ai_addr;
+            addr = inet_ntop(AF_INET, &sinp->sin_addr, abuf, INET_ADDRSTRLEN);
+            printf(" address %s", addr?addr:"unknown");
+            printf(" prot %d", ntohs(sinp->sin_port))
+        }
+        printf("\n");
+    }
+    exit(0);
 }
