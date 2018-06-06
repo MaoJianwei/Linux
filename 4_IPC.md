@@ -2,19 +2,19 @@
 
 每个进程各自有不同的用户地址空间，任何一个进程的全局变量在另一个进程中都看不到，所以进程之间要交换数据必须通过内核，在内核中开辟一块缓冲区，进程1把数据从用户空间拷到内核缓冲区，进程2再从内核缓冲区把数据读走，内核提供的这种机制称为进程间通信（IPC，InterProcess Communication）。
 
-<center>
+<div align=center>
 
 ![图4.1 进程间通信](./figures/4-linux-IPC/processcom.png)
 
 "图4.1 进程间通信"
 
-</center>
+</div>
 
 ## 4.1  pipe管道
 
 管道是一种最基本的IPC机制，由pipe函数创建：
 
-``` 
+```c 
         #include <unistd.h>
         int pipe(int filedes[2]);
 ```
