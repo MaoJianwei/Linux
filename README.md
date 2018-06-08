@@ -1,3 +1,3 @@
 # Linux #
 
-Linux环境变成学习资料总结
+UNIX/Linux 环境编程学习记录
