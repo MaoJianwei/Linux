@@ -5,19 +5,19 @@
 ### 1.1.1 函数sysconf、pathconf和fpathconf
 
 函数原型
+```c
+    #include <unistd.h>
 
-	#include <unistd.h>
-	
-	long sysconf(int name);
-	long pathconf(const char* pathname, int name);
-	long fpathconf(int fd, int name);
-
+    long sysconf(int name);
+    long pathconf(const char* pathname, int name);
+    long fpathconf(int fd, int name);
+```
 
 后面连个函数的区别在于：一个用路径名作为参数，一个用文件描述符作为参数。
 
-如果name不是一个合适的常量，三个函数都会返回-1，并把errno设置为EINVAL。
+如果`name`不是一个合适的常量，三个函数都会返回-1，并把`errno`设置为EINVAL。
 
-有些name会返回一个变量值（返回值≥0）或者提示该值是不确定的。不确定的值通过-1来体现，但是不修改errno的值。
+有些name会返回一个变量值（返回值≥0）或者提示该值是不确定的。不确定的值通过-1来体现，但是不修改`errno`的值。
 
 ### 1.1.2  I/O缓冲区
 
